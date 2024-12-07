@@ -152,7 +152,7 @@ async def find_key_for_signature_pair(dsp: Dsp, sig1: EmailSignature, sig2: Emai
 	p = find_key(dsp, sig1, sig2, logging.INFO)
 	if p:
 		logging.info(f'found public key for {info}, TEMPORARY EXIT for testing')
-		sys.exit(0)
+		return
 		dsp_record = await prisma.domainselectorpair.find_first(where={'domain': dsp.domain, 'selector': dsp.selector})
 		if dsp_record is None:
 			dsp_record = await prisma.domainselectorpair.create(data={'domain': dsp.domain, 'selector': dsp.selector, 'sourceIdentifier': 'public_key_gcd_batch'})
@@ -182,7 +182,7 @@ async def find_key_for_signature_pair(dsp: Dsp, sig1: EmailSignature, sig2: Emai
 		})
 	else:
 		logging.info(f'no public key found for {info}, TEMPORARY EXIT for testing')
-		sys.exit(0)
+		return
 		await prisma.emailpairgcdresult.create(data={
 		    'emailSignatureA_id': sig1.id,
 		    'emailSignatureB_id': sig2.id,
@@ -276,6 +276,8 @@ async def main():
 				pbar.set_postfix_str(f"Keys known for {dsp.domain} {dsp.selector}")
 			else:
 				pbar.set_postfix_str(f"Searching {dsp.domain} {dsp.selector}")
+			if(dsp.domain == "accounts.google.com"):
+				continue
 			pbar.update(1)
 			if len(sigs) >= 2:
 				# Sort signatures by timestamp
