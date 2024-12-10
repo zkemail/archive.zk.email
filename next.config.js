@@ -6,7 +6,7 @@ const cspValue = [
   "frame-ancestors 'none'",
   "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
   "img-src 'self' https://authjs.dev/ data:", // https://authjs.dev/ for images during the login flow
-  "connect-src 'self' https://*.alchemy.com", // https://*.alchemy.com used by Witness
+  "connect-src 'self' https://*.alchemy.com https://archive.prove.email https://archive.zk.email https://*.prove.email https://*.zk.email http://localhost:3000", // https://*.alchemy.com used by Witness
 ];
 
 const nextConfig = {
