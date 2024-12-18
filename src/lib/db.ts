@@ -93,7 +93,6 @@ export async function createDkimRecord(dsp: DomainSelectorPair, dkimDsnRecord: D
 	return dkimRecord;
 }
 
-
 export async function getLastJWKeySet() {
 	try {
 		const lastJwtKey = await prisma.jsonWebKeySets.findFirst({
@@ -112,9 +111,9 @@ export async function getLastJWKeySet() {
 export async function updateJWKeySet() {
 	try {
 		const lastJWKeySet = await getLastJWKeySet();
-		const latestJWKeySet = await fetchJsonWebKeySet();
-		if (lastJWKeySet?.jwks != latestJWKeySet) {
-			return await prisma.jsonWebKeySets.create({
+		const latestx509Cert = await fetchx509Cert();
+		if (lastJWKeySet?.x509Certificate != latestx509Cert) {
+    		return await prisma.jsonWebKeySets.create({
 				data: {
 				jwks: await fetchJsonWebKeySet(),
 				x509Certificate: await fetchx509Cert(),
