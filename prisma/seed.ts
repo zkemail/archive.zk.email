@@ -1,4 +1,5 @@
 import { PrismaClient } from '@prisma/client'
+import { fetchJsonWebKeySet, fetchx509Cert } from '@/lib/utils'
 
 const prisma = new PrismaClient()
 
@@ -30,6 +31,13 @@ async function main() {
 			});
 		}
 	}
+	await prisma.jsonWebKeySets.create({
+		data: {
+			jwks: await fetchJsonWebKeySet(),
+			x509Certificate: await fetchx509Cert()
+
+		}
+	});
 }
 
 main()
