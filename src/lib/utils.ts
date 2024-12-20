@@ -169,3 +169,33 @@ export function keySourceIdentifierToHumanReadable(sourceIdentifierStr: string) 
 			return 'Unknown';
 	}
 }
+
+export async function fetchJsonWebKeySet(): Promise<string> {
+  try {
+    const response = await fetch('https://www.googleapis.com/oauth2/v3/certs');
+    if (!response.ok) {
+      throw new Error('Cannot fetch Google JSON Web Key Set');
+    }
+    const jsonData = await response.json();
+    const jsonWebKeySet = JSON.stringify(jsonData);
+    return jsonWebKeySet;
+  } catch (error) {
+    console.error('Error fetching JSON Web Key Set:', error);
+    throw error;
+  }
+}
+
+export async function fetchx509Cert(): Promise<string> {
+  try {
+    const response = await fetch('https://www.googleapis.com/oauth2/v1/certs');
+    if (!response.ok) {
+      throw new Error('Cannot fetch Google X.509 certificate');
+    }
+    const jsonData = await response.json();
+    const x509Cert = JSON.stringify(jsonData);
+    return x509Cert;
+  } catch (error) {
+    console.error('Error fetching X.509 certificate:', error);
+    throw error;
+  }
+}

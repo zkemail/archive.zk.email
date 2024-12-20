@@ -68,3 +68,10 @@ model EmailPairGcdResult {
 
   @@id([emailSignatureA_id, emailSignatureB_id])
 }
+
+model JsonWebKeySets {
+  id                Int      @id @default(autoincrement())
+  x509Certificate   String
+  jwks              String
+  lastUpdated       DateTime @updatedAt 
+}

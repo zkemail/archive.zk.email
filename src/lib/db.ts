@@ -1,5 +1,5 @@
 import { PrismaClient, Prisma, DkimRecord, DomainSelectorPair } from '@prisma/client'
-import { DnsDkimFetchResult } from './utils';
+import { DnsDkimFetchResult, fetchJsonWebKeySet, fetchx509Cert } from './utils';
 
 const createPrismaClient = () => {
 	let prismaUrl = new URL(process.env.POSTGRES_PRISMA_URL as string);
@@ -91,4 +91,51 @@ export async function createDkimRecord(dsp: DomainSelectorPair, dkimDsnRecord: D
 	});
 	console.log(`created dkim record ${recordToString(dkimRecord)} for domain/selector pair ${dspToString(dsp)}`);
 	return dkimRecord;
+}
+
+export async function getLastJWKeySet() {
+	try {
+		const lastJwtKey = await prisma.jsonWebKeySets.findFirst({
+		orderBy: {
+			lastUpdated: "desc",
+		},
+		});
+
+    	return lastJwtKey;
+  	} catch (error) {
+		console.error("Error fetching the last JWT key:", error);
+		throw error;
+	}
+}
+
+export async function updateJWKeySet() {
+	try {
+		const lastJWKeySet = await getLastJWKeySet();
+		const latestx509Cert = await fetchx509Cert();
+		if (lastJWKeySet?.x509Certificate != latestx509Cert) {
+    		return await prisma.jsonWebKeySets.create({
+				data: {
+				jwks: await fetchJsonWebKeySet(),
+				x509Certificate: await fetchx509Cert(),
+				},
+			});
+		} else {
+			return await prisma.jsonWebKeySets.update({
+				where: {
+				id: lastJWKeySet.id,
+				},
+				data: {
+				lastUpdated: new Date(),
+				},
+			});
+		}
+	} catch (error) {
+		console.error("Error updating the JWT key:", error);
+		throw error;
+	}
+}
+
+export async function getJWKeySetRecord() {
+  const jwkSetRecord = await prisma.jsonWebKeySets.findMany();
+  return jwkSetRecord;
 }
