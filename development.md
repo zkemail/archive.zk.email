@@ -1,6 +1,6 @@
 # Development
 
-For general guidelines on contributing to the projects under ZK Email, see the [Contributing](https://zkemail.gitbook.io/zk-email/contributing) page for ZK Email.
+For general guidelines on contributing to the projects under ZK Email, see the [Contributing](https://docs.zk.email/contributing) page for ZK Email.
 
 ## Local development setup
 
