@@ -3,6 +3,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { headers } from "next/headers";
 import { RateLimiterMemory } from "rate-limiter-flexible";
 import { checkRateLimiter } from "@/lib/utils";
+import { prisma } from "@/lib/db";
+import { refreshKeysFromDns } from "@/lib/utils_server";
 
 export type DomainSearchResults = {
 	domain: string;
@@ -27,6 +29,18 @@ export async function GET(request: NextRequest) {
 		if (!domainName) {
 			return NextResponse.json('missing domain parameter', { status: 400 });
 		}
+
+		// Fetch all domain/selector pairs for this domain and refresh their DNS records
+		const dsps = await prisma.domainSelectorPair.findMany({
+			where: { domain: domainName }
+		});
+
+		// Refresh DNS records for each domain/selector pair
+		for (const dsp of dsps) {
+			await refreshKeysFromDns(dsp);
+		}
+
+		// Now fetch the updated records
 		let records = await findRecords(domainName);
 		let result: DomainSearchResults[] = records.map((record) => ({
 			domain: record.domainSelectorPair.domain,
