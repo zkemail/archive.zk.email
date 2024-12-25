@@ -26,16 +26,18 @@ export async function GET(request: NextRequest) {
 
 	try {
 		const domainName = request.nextUrl.searchParams.get('domain');
+		const selectorName = request.nextUrl.searchParams.get('selector');
 		if (!domainName) {
 			return NextResponse.json('missing domain parameter', { status: 400 });
 		}
 
-		// Fetch all domain/selector pairs for this domain and refresh their DNS records
-		const dsps = await prisma.domainSelectorPair.findMany({
-			where: { domain: domainName }
-		});
+		// Fetch domain/selector pair(s) and refresh DNS records
+		const where = selectorName 
+			? { domain: domainName, selector: selectorName }
+			: { domain: domainName };
+		const dsps = await prisma.domainSelectorPair.findMany({ where });
 
-		// Refresh DNS records for each domain/selector pair
+		// Refresh DNS records for the found pair(s)
 		for (const dsp of dsps) {
 			await refreshKeysFromDns(dsp);
 		}

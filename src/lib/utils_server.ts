@@ -6,7 +6,7 @@ import dns from 'dns';
 import { KeyType } from "@prisma/client";
 import { execFileSync } from "node:child_process";
 
-async function refreshKeysFromDns(dsp: DomainSelectorPair) {
+export async function refreshKeysFromDns(dsp: DomainSelectorPair) {
 	let now = new Date();
 	let oneHourAgo = new Date(now.getTime() - 1000 * 60 * 60);
 	if (!dsp.lastRecordUpdate || dsp.lastRecordUpdate < oneHourAgo) {
