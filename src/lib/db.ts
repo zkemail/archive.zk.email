@@ -117,6 +117,7 @@ export async function updateJWKeySet() {
 				data: {
 				jwks: await fetchJsonWebKeySet(),
 				x509Certificate: await fetchx509Cert(),
+				provenanceVerified: false,
 				},
 			});
 		} else {

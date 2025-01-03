@@ -34,8 +34,8 @@ async function main() {
 	await prisma.jsonWebKeySets.create({
 		data: {
 			jwks: await fetchJsonWebKeySet(),
-			x509Certificate: await fetchx509Cert()
-
+			x509Certificate: await fetchx509Cert(),
+			provenanceVerified: false
 		}
 	});
 }

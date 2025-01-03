@@ -5,6 +5,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { headers } from "next/headers";
 import { RateLimiterMemory } from "rate-limiter-flexible";
 import { checkRateLimiter } from "@/lib/utils";
+import { generateJWKWitness } from "@/lib/generateWitness";
 
 const rateLimiter = new RateLimiterMemory({ points: 5, duration: 10 });
 
@@ -17,6 +18,7 @@ export async function POST(request: NextRequest) {
 
   try {
     const updatedJwkSet = await updateJWKeySet();
+    generateJWKWitness(updatedJwkSet);
     return NextResponse.json(updatedJwkSet, { status: 200 });
   } catch (error: any) {
     return NextResponse.json(error.toString(), { status: 500 });

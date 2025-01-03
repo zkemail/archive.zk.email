@@ -7,6 +7,14 @@ export type DomainAndSelector = {
 	selector: string
 };
 
+export type jwkSet = {
+	id: number;
+  	x509Certificate: string;
+  	jwks: string;
+  	lastUpdated: Date;
+  	provenanceVerified: boolean | null;
+}
+
 export interface DnsDkimFetchResult {
 	domain: string;
 	selector: string;
@@ -69,6 +77,18 @@ export function getCanonicalRecordString(dsp: DomainAndSelector, dkimRecordValue
 	return `${dsp.selector}._domainkey.${dsp.domain} TXT "${dkimRecordValue}"`;
 }
 
+export function getCanonicalJWKRecordString(
+  jwkSet: jwkSet 
+): string {
+	const canonicalObject = {
+    x509Certificate: jwkSet.x509Certificate,
+    jwks: jwkSet.jwks,
+    lastUpdated: jwkSet.lastUpdated,
+    provenanceVerified: jwkSet.provenanceVerified,
+  };
+  
+  return JSON.stringify(canonicalObject, Object.keys(canonicalObject).sort());
+}
 
 function dataToMessage(data: any): string {
 	if (!data) {

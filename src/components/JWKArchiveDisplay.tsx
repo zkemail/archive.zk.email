@@ -3,12 +3,15 @@
 import { FC, useEffect, useState, ReactNode } from 'react';
 import { Timestamp } from './Timestamp';
 import { cardStyle } from './styles';
+import { ProvenanceIcon } from './SelectorResult';
+import { getCanonicalJWKRecordString } from '@/lib/utils';
 
-interface CardData {
+interface JWKData {
   id: number;
   x509Certificate: string;
   jwks: string;
   lastUpdated: Date;
+  provenanceVerified: boolean;
 }
 
 interface RowProps {
@@ -24,7 +27,7 @@ const Row: FC<RowProps> = ({ label: title, children }) => (
 );
 
 interface CardProps {
-  data: CardData;
+  data: JWKData;
 }
 
 export const JWKArchiveDisplay: FC<CardProps> = ({ data }) => (
@@ -41,7 +44,8 @@ export const JWKArchiveDisplay: FC<CardProps> = ({ data }) => (
       </pre>
     </Row>
     <Row label="Last Updated:">
-        <Timestamp date={new Date(data.lastUpdated)}/> 
+        <Timestamp date={new Date(data.lastUpdated)}/>&nbsp;
+				{data.provenanceVerified && <ProvenanceIcon canonicalString={getCanonicalJWKRecordString(data)} />} 
     </Row>
   </div>
 );
@@ -49,15 +53,14 @@ export const JWKArchiveDisplay: FC<CardProps> = ({ data }) => (
 interface JWKArchiveDisplayListProps {}
 
 export const JWKArchiveDisplayList: FC<JWKArchiveDisplayListProps> = () => {
-  const [records, setRecords] = useState<CardData[]>([]);
+  const [records, setRecords] = useState<JWKData[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
 
   useEffect(() => {
     const fetchData = async () => {
       try {
         const response = await fetch('/api/key/fetchJwkSet');
-        const data: CardData[] = await response.json();
-        console.log("data = ", data);
+        const data: JWKData[] = await response.json();
         setRecords(data);
       } catch (error) {
         console.error('Error fetching data:', error);
