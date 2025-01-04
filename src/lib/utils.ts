@@ -197,7 +197,12 @@ export async function fetchJsonWebKeySet(): Promise<string> {
       throw new Error('Cannot fetch Google JSON Web Key Set');
     }
     const jsonData = await response.json();
-    const jsonWebKeySet = JSON.stringify(jsonData, null, 2);
+	console.log(jsonData);
+    const jsonWebKeySet = JSON.stringify(
+      jsonData,
+      null,
+      2
+    );
     return jsonWebKeySet;
   } catch (error) {
     console.error('Error fetching JSON Web Key Set:', error);
@@ -212,7 +217,7 @@ export async function fetchx509Cert(): Promise<string> {
       throw new Error('Cannot fetch Google X.509 certificate');
     }
     const jsonData = await response.json();
-    const x509Cert = JSON.stringify(jsonData, null, 2);
+    const x509Cert = JSON.stringify(jsonData,  Object.keys(jsonData).sort(), 2);
     return x509Cert;
   } catch (error) {
     console.error('Error fetching X.509 certificate:', error);
