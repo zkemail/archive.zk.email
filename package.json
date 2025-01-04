@@ -29,6 +29,7 @@
 		"moment": "^2.30.1",
 		"next": "14.2.3",
 		"next-auth": "^4.24.7",
+		"node-cron": "^3.0.3",
 		"rate-limiter-flexible": "^5.0.3",
 		"react": "^18.3.1",
 		"react-dom": "^18.3.1",
@@ -38,6 +39,7 @@
 	},
 	"//": "prisma 5.11.0 needed for Prisma Client Python",
 	"devDependencies": {
+		"@types/cron": "^2.4.3",
 		"@types/lodash": "^4.17.10",
 		"@types/node": "^20.12.12",
 		"@types/react": "^18.3.3",
