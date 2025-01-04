@@ -104,7 +104,6 @@ export async function getLastJWKeySet() {
     	return lastJwtKey;
   	} catch (error) {
 		console.error("Error fetching the last JWT key:", error);
-		throw error;
 	}
 }
 
@@ -132,7 +131,6 @@ export async function updateJWKeySet() {
 		}
 	} catch (error) {
 		console.error("Error updating the JWT key:", error);
-		throw error;
 	}
 }
 

@@ -18,7 +18,7 @@ export async function POST(request: NextRequest) {
 
   try {
     const updatedJwkSet = await updateJWKeySet();
-    generateJWKWitness(updatedJwkSet);
+    if (updatedJwkSet) generateJWKWitness(updatedJwkSet);
     return NextResponse.json(updatedJwkSet, { status: 200 });
   } catch (error: any) {
     return NextResponse.json(error.toString(), { status: 500 });

@@ -32,7 +32,8 @@ const DevModeNotice: React.FC = () => {
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
-  if (typeof window === "undefined") {  // To ensure it runs only on the server side
+  // To ensure it runs only on the server side
+  if (typeof window === "undefined") {  
     // console.log("Starting UpdateJWKCronJob...");
     startJWKCronJob();
 
@@ -49,6 +50,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       process.exit(0);
     });
   }
+  
   return (
     <html lang="en">
       <NextAuthProvider>

@@ -1,5 +1,6 @@
 import { expect, test } from 'vitest'
-import { parseDkimTagList } from './utils';
+import { fetchJsonWebKeySet, parseDkimTagList, fetchx509Cert } from "./utils";
+import { getLastJWKeySet } from './db';
 
 test('parseDkimTagList', () => {
 	expect(parseDkimTagList(' k=rsa;b=c; =foo   ; hello; b=duplicate_value_for_b; p=abcd12345;;;k2=v2')).toStrictEqual({
@@ -16,3 +17,14 @@ test('parseDkimTagList', () => {
 	expect(tagList.hasOwnProperty('c')).toBe(true);
 	expect(tagList.hasOwnProperty('f')).toBe(false);
 })
+
+test("jwkStorage", async () => {
+	const jwkSet = JSON.parse(await fetchJsonWebKeySet());
+	const x509Cert = JSON.parse(await fetchx509Cert());
+	// console.log(jwkSet);
+	const JwkSet = await getLastJWKeySet();
+	expect(JwkSet).not.toBeUndefined();
+	expect(JwkSet).not.toBeNull();
+	expect(jwkSet).toStrictEqual(JSON.parse(JwkSet!.jwks));
+	expect(x509Cert).toStrictEqual(JSON.parse(JwkSet!.x509Certificate));
+});
