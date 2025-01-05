@@ -1,4 +1,7 @@
-import { PrismaClient, Prisma, DkimRecord, DomainSelectorPair } from '@prisma/client'
+import { PrismaClient, type Prisma } from '@prisma/client'
+
+type DkimRecord = Prisma.DkimRecordGetPayload<{}>
+type DomainSelectorPair = Prisma.DomainSelectorPairGetPayload<{}>
 import { DnsDkimFetchResult } from './utils';
 
 const createPrismaClient = () => {
@@ -23,21 +26,22 @@ if (process.env.NODE_ENV !== 'production') {
 
 export type RecordWithSelector = (DkimRecord & { domainSelectorPair: DomainSelectorPair });
 
-export async function findRecords(domainQuery: string): Promise<RecordWithSelector[]> {
+export async function findRecords(domainQuery: string, selector?: string): Promise<RecordWithSelector[]> {
 	return await prisma.dkimRecord.findMany({
 		where: {
 			domainSelectorPair: {
+				...(selector ? { selector } : {}),
 				OR: [
 					{
 						domain: {
 							equals: domainQuery,
-							mode: Prisma.QueryMode.insensitive,
+							mode: 'insensitive',
 						}
 					},
 					{
 						domain: {
 							endsWith: '.' + domainQuery,
-							mode: Prisma.QueryMode.insensitive,
+							mode: 'insensitive',
 						}
 					}
 				]
