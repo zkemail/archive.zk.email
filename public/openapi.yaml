@@ -29,6 +29,13 @@ paths:
           schema:
             type: string
           example: 'example.com'
+        - name: selector
+          in: query
+          description: Filter results to only show records matching this selector. If not provided, all selectors for the domain will be returned.
+          required: false
+          schema:
+            type: string
+          example: 'dkim1'
       responses:
         '400':
           description: Missing parameter

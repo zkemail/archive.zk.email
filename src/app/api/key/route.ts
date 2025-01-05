@@ -43,7 +43,7 @@ export async function GET(request: NextRequest) {
 		}
 
 		// Now fetch the updated records
-		let records = await findRecords(domainName);
+		let records = await findRecords(domainName, selectorName || undefined);
 		let result: DomainSearchResults[] = records.map((record) => ({
 			domain: record.domainSelectorPair.domain,
 			selector: record.domainSelectorPair.selector,
