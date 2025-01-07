@@ -100,11 +100,14 @@ export default function Page() {
 	const signedIn = (status !== "unauthenticated") && session;
 
 	function ProgressArea(): React.ReactNode {
+		const [startDate, setStartDate] = React.useState<string>('');
+		const [endDate, setEndDate] = React.useState<string>('');
+		const [sender, setSender] = React.useState<string>('');
+
 		if (!signedIn) {
 			return <NotSignedIn />
 		}
 
-		// check for strict equality to avoid showing a misleading message to the user when the value is unknown (undefined), but the user has in fact granted the scope access
 		if (session.has_metadata_scope === false) {
 			return <InsufficientPermissions />
 		}
@@ -119,17 +122,36 @@ export default function Page() {
 				Progress: {progressState}
 			</div>
 			<div>
+				<input
+					type="date"
+					value={startDate}
+					onChange={(e) => setStartDate(e.target.value)}
+					placeholder="Start Date"
+				/>
+				<input
+					type="date"
+					value={endDate}
+					onChange={(e) => setEndDate(e.target.value)}
+					placeholder="End Date"
+				/>
+				<input
+					type="text"
+					value={sender}
+					onChange={(e) => setSender(e.target.value)}
+					placeholder="Sender Email"
+				/>
+			</div>
+			<div>
 				{showStartButton && <button style={actionButtonStyle} onClick={() => {
-					uploadFromGmail();
+					uploadFromGmail(startDate, endDate, sender);
 				}}>Start</button>}
 				{showResumeButton && <button style={actionButtonStyle} onClick={() => {
-					uploadFromGmail();
+					uploadFromGmail(startDate, endDate, sender);
 				}}>Resume</button>}
 				{showPauseButton && <button style={actionButtonStyle} onClick={() => {
 					logmsg('pausing upload...');
 					setProgressState('Paused');
 				}}>Pause</button>}
-
 			</div>
 			{showProgress && <>
 				<div style={{ marginTop: '1rem', marginBottom: '1rem' }}>
@@ -154,11 +176,17 @@ export default function Page() {
 		setLog(log => [...log, { message, date: new Date() }]);
 	}
 
-	async function uploadFromGmail() {
+	async function uploadFromGmail(startDate?: string, endDate?: string, sender?: string) {
 		setProgressState('Running...');
 		try {
 			logmsg(`fetching page ${nextPageToken}`);
-			let response = await axios.get<GmailResponse>(gmailApiUrl, { params: { pageToken: nextPageToken }, timeout: 20000 });
+			let params: any = { pageToken: nextPageToken, timeout: 20000 };
+			
+			if (startDate) params.startDate = startDate;
+			if (endDate) params.endDate = endDate;
+			if (sender) params.sender = sender;
+
+			let response = await axios.get<GmailResponse>(gmailApiUrl, { params });
 			await update();
 			if (response.data.messagesTotal) {
 				setTotalMessages(response.data.messagesTotal);
