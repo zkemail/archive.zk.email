@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect } from "react";
+import React, { useEffect, useRef } from "react";
 import { useSession, signIn, signOut } from "next-auth/react"
 import { LogConsole, LogRecord } from "@/components/LogConsole";
 import { axiosErrorMessage, truncate } from "@/lib/utils";
@@ -18,20 +18,26 @@ export default function Page() {
 	const [uploadedPairs, setUploadedPairs] = React.useState<Set<string>>(new Set());
 	const [addedPairs, setAddedPairs] = React.useState<number>(0);
 	const [nextPageToken, setNextPageToken] = React.useState<string>('');
+	const [gmailQuery, setGmailQuery] = React.useState<string>('');
 	const [processedMessages, setProcessedMessages] = React.useState<number>(0);
 	const [totalMessages, setTotalMessages] = React.useState<number | null>(null);
+	const [startDate, setStartDate] = React.useState<string>('');
+	const [endDate, setEndDate] = React.useState<string>('');
+	const [domain, setDomain] = React.useState<string>('');
 
 	type ProgressState = 'Not started' | 'Running...' | 'Paused' | 'Interrupted' | 'Completed';
 	const [progressState, setProgressState] = React.useState<ProgressState>('Not started');
+
+	const domainInputRef = useRef<HTMLInputElement>(null);
 
 	useEffect(() => {
 		if (progressState === 'Paused') {
 			logmsg(progressState);
 		}
 		if (progressState === 'Running...') {
-			uploadFromGmail();
+			uploadFromGmail(gmailQuery);
 		}
-	}, [nextPageToken]);
+	}, [nextPageToken, gmailQuery]);
 
 	if (status === "loading" && !session) {
 		return <p>loading...</p>
@@ -84,12 +90,12 @@ export default function Page() {
 				Insufficient permissions
 			</h3>
 			<p>
-				To use this feature, you need to grant permission for the site to access email message metadata.
+				To use this feature, you need to grant permission for the site to access email message.
 				To do this, <b><a href="#" onClick={() => signOut()}>sign out</a></b> and sign in again,
-				and during the sign-in process, give permission to access email message metadata:
+				and during the sign-in process, give permission to access email message:
 			</p>
 			<p>
-				<img src="/grant_metadata_scope.png" alt="instruction to grant metadata scope" />
+				<img src="/grant_metadata_scope.png" alt="instruction to grant scope" />
 			</p>
 		</div>
 	}
@@ -100,15 +106,11 @@ export default function Page() {
 	const signedIn = (status !== "unauthenticated") && session;
 
 	function ProgressArea(): React.ReactNode {
-		const [startDate, setStartDate] = React.useState<string>('');
-		const [endDate, setEndDate] = React.useState<string>('');
-		const [sender, setSender] = React.useState<string>('');
-
 		if (!signedIn) {
 			return <NotSignedIn />
 		}
 
-		if (session.has_metadata_scope === false) {
+		if (session.has_gmail_scope === false) {
 			return <InsufficientPermissions />
 		}
 
@@ -121,32 +123,47 @@ export default function Page() {
 			<div style={{ fontWeight: 500 }}>
 				Progress: {progressState}
 			</div>
-			<div>
-				<input
-					type="date"
-					value={startDate}
-					onChange={(e) => setStartDate(e.target.value)}
-					placeholder="Start Date"
-				/>
-				<input
-					type="date"
-					value={endDate}
-					onChange={(e) => setEndDate(e.target.value)}
-					placeholder="End Date"
-				/>
-				<input
-					type="text"
-					value={sender}
-					onChange={(e) => setSender(e.target.value)}
-					placeholder="Sender Email"
-				/>
+			<div style={{ display: 'flex', flexDirection: 'column' }}>
+				<div style={{ fontStyle: 'italic', color: '#555' }}>The folowing fields are optional:</div>
+				<label>
+					Start Date:
+					<input
+						type="date"
+						value={startDate}
+						onChange={(e) => setStartDate(formatDate(e.target.value) ?? '')}
+						placeholder="Start Date"
+						style={{ marginLeft: '0.5rem' }}
+					/>
+				</label>
+				<label>
+					End Date:
+					<input
+						type="date"
+						value={endDate}
+						onChange={(e) => setEndDate(formatDate(e.target.value) ?? '')}
+						placeholder="End Date"
+						style={{ marginLeft: '0.5rem' }}
+					/>
+				</label>
+				<label>
+					Domain:
+					<input
+						type="text"
+						ref={domainInputRef}
+						defaultValue={domain}
+						onBlur={handleDomainChange}
+						placeholder="Domain"
+						style={{ marginLeft: '0.5rem' }}
+					/>
+				</label>
 			</div>
 			<div>
 				{showStartButton && <button style={actionButtonStyle} onClick={() => {
-					uploadFromGmail(startDate, endDate, sender);
+					constructGmailQuery(startDate, endDate, domain);
+					uploadFromGmail(gmailQuery);
 				}}>Start</button>}
 				{showResumeButton && <button style={actionButtonStyle} onClick={() => {
-					uploadFromGmail(startDate, endDate, sender);
+					uploadFromGmail(gmailQuery);
 				}}>Resume</button>}
 				{showPauseButton && <button style={actionButtonStyle} onClick={() => {
 					logmsg('pausing upload...');
@@ -176,17 +193,43 @@ export default function Page() {
 		setLog(log => [...log, { message, date: new Date() }]);
 	}
 
-	async function uploadFromGmail(startDate?: string, endDate?: string, sender?: string) {
+	function formatDate(dateString: string): string | null {
+		if (!dateString) return null;
+		const date = new Date(dateString);
+		if (isNaN(date.getTime())) return null; // Invalid date
+		const year = date.getFullYear();
+		const month = String(date.getMonth() + 1).padStart(2, '0'); // Months are 0-based
+		const day = String(date.getDate()).padStart(2, '0');
+		return `${year}/${month}/${day}`;
+	}
+
+	function constructGmailQuery(startDate?: string, endDate?: string, domain?: string) {
+		console.log('constructGmailQuery', startDate, endDate, domain);
+		let queryParts: string[] = [];
+	
+		if (startDate) {
+			queryParts.push(`after:${startDate}`);
+		}
+	
+		if (endDate) {
+			queryParts.push(`before:${endDate}`);
+		}
+	
+		if (domain) {
+			queryParts.push(`from:${domain}`);
+		}
+	
+		setGmailQuery(queryParts.join(" "));
+	}
+
+	async function uploadFromGmail(currentGmailQuery: string) {
 		setProgressState('Running...');
 		try {
 			logmsg(`fetching page ${nextPageToken}`);
-			let params: any = { pageToken: nextPageToken, timeout: 20000 };
-			
-			if (startDate) params.startDate = startDate;
-			if (endDate) params.endDate = endDate;
-			if (sender) params.sender = sender;
+			let params: any = { pageToken: nextPageToken, timeout: 20000, gmailQuery: currentGmailQuery };
 
 			let response = await axios.get<GmailResponse>(gmailApiUrl, { params });
+			
 			await update();
 			if (response.data.messagesTotal) {
 				setTotalMessages(response.data.messagesTotal);
@@ -219,6 +262,12 @@ export default function Page() {
 			console.log(message);
 			logmsg(`error: ${truncate(message, 150)}`);
 			setProgressState('Interrupted');
+		}
+	}
+
+	function handleDomainChange() {
+		if (domainInputRef.current) {
+			setDomain(domainInputRef.current.value);
 		}
 	}
 

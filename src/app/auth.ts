@@ -12,7 +12,7 @@ export const authOptions = {
 				params: {
 					prompt: "consent",
 					access_type: "offline",
-					scope: 'https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/gmail.metadata',
+					scope: 'https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/gmail.readonly',
 				},
 			},
 		}),
@@ -61,15 +61,15 @@ export const authOptions = {
 			}
 		},
 		async session({ session, token }: { session: any, token: any }): Promise<Session> {
-			let has_metadata_scope: boolean | undefined = undefined;
+			let has_gmail_scope: boolean | undefined = undefined;
 			if (typeof token.scope == 'string') {
-				has_metadata_scope = token.scope.split(' ').includes('https://www.googleapis.com/auth/gmail.metadata')
+				has_gmail_scope = token.scope.split(' ').includes('https://www.googleapis.com/auth/gmail.readonly')
 			}
 			let sessionResponse = {
 				error: token.error,
 				expires: session.expires,
 				user: session.user,
-				has_metadata_scope
+				has_gmail_scope,
 			}
 			return sessionResponse
 		},
