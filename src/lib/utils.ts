@@ -1,6 +1,7 @@
 import { ReadonlyHeaders } from "next/dist/server/web/spec-extension/adapters/headers";
 import { RateLimiterMemory } from "rate-limiter-flexible";
 import { KeyType } from "@prisma/client";
+import crypto from "crypto";
 
 export type DomainAndSelector = {
 	domain: string,
@@ -16,6 +17,8 @@ export interface DnsDkimFetchResult {
 	keyDataBase64: string | null;
 }
 
+const pemHeader = "-----BEGIN PUBLIC KEY-----\n";
+const pemFooter = "\n-----END PUBLIC KEY-----";
 
 export function kValueToKeyType(s: string | null | undefined): KeyType {
 	if (s === null || s === undefined) {
@@ -31,6 +34,11 @@ export function kValueToKeyType(s: string | null | undefined): KeyType {
 	throw new Error(`Unknown key type: "${s}"`);
 }
 
+function isBase64(key: string): boolean {
+  const base64Regex = /^[A-Za-z0-9+/]+={0,2}$/;
+  return base64Regex.test(key);
+}
+
 // relaxed implementation of Tag=Value List, see https://datatracker.ietf.org/doc/html/rfc6376#section-3.2
 export function parseDkimTagList(dkimValue: string): Record<string, string> {
 	const result: Record<string, string> = {};
@@ -42,9 +50,44 @@ export function parseDkimTagList(dkimValue: string): Record<string, string> {
 		}
 		const key = part.slice(0, i).trim();
 		const value = part.slice(i + 1).trim();
-		if (result.hasOwnProperty(key)) {
-			// duplicate key, keep the first one
-			continue;
+		switch (key) {
+			case "v":
+				if(value !== 'DKIM1') {
+					throw new Error(`Unknown DKIM version: ${value}`);
+				}
+				break;
+			case "p":
+				if (isBase64(value)) {
+					const modifiedValue = pemHeader + value.replace(/\s/g, "\n") + pemFooter;
+					console.log(modifiedValue);
+					try {
+						const publicKey = crypto.createPublicKey(modifiedValue);
+						// console.log(publicKey.asymmetricKeyType);
+						// console.log(publicKey.asymmetricKeyDetails?.modulusLength);
+						if (publicKey.asymmetricKeyType === "rsa" && [512, 1024, 2048, 4096].includes(publicKey.asymmetricKeyDetails?.modulusLength!)) {
+							result[key] = value;
+						}
+						else if ( publicKey.asymmetricKeyType === "ed25519" && publicKey.asymmetricKeyDetails?.modulusLength === 256 ) {
+							result[key] = value;
+						} else {
+							console.error("Invalid public key passed value for key p: ${value}");
+							continue;
+						}
+					} catch (error) {
+						console.error(`Invalid public key passed value for key p: ${value} ${error}`);
+						continue;
+					}
+				} else {
+					console.error(`Invalid base64 value for key p: ${value}`);
+					continue;
+				}
+				break;
+			default:
+				if (result.hasOwnProperty(key)) {
+					// duplicate key, keep the first one
+					continue;
+				}
+				break;
 		}
 		result[key] = value;
 	}
