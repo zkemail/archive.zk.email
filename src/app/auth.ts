@@ -12,7 +12,7 @@ export const authOptions = {
 				params: {
 					prompt: "consent",
 					access_type: "offline",
-					scope: 'https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/gmail.readonly',
+					scope: 'https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/gmail.metadata',
 				},
 			},
 		}),
