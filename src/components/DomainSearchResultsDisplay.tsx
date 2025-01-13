@@ -17,6 +17,7 @@ export const DomainSearchResultsDisplay: React.FC<DomainSearchResultProps> = ({
   loadMore,
   cursor,
 }) => {
+  const mergedRecords = mergeRecordsByValue(Array.from(records.values()));
   const { ref: inViewElement, inView } = useInView();
 
   useEffect(() => {
@@ -37,7 +38,7 @@ export const DomainSearchResultsDisplay: React.FC<DomainSearchResultProps> = ({
         Search results for <b>{domainQuery}</b>
       </p>
       <div>
-        {Array.from(records.values()).map((record) => (
+        {mergedRecords.map((record) => (
           <SelectorResult key={record.id} record={record} />
         ))}
       </div>
@@ -46,3 +47,27 @@ export const DomainSearchResultsDisplay: React.FC<DomainSearchResultProps> = ({
     </div>
   );
 };
+
+function mergeRecordsByValue(records: RecordWithSelector[]): RecordWithSelector[] {
+  const valueMap = new Map<string, RecordWithSelector>();
+
+  records.forEach((record) => {
+    if (valueMap.has(record.value)) {
+      const existing = valueMap.get(record.value)!;
+
+      existing.firstSeenAt = new Date(Math.min(existing.firstSeenAt.getTime(), record.firstSeenAt.getTime()));
+
+      if (existing.lastSeenAt && record.lastSeenAt) {
+        existing.lastSeenAt = new Date(Math.max(existing.lastSeenAt.getTime(), record.lastSeenAt.getTime()));
+      } else {
+        existing.lastSeenAt = existing.lastSeenAt || record.lastSeenAt;
+      }
+
+      valueMap.set(record.value, existing);
+    } else {
+      valueMap.set(record.value, record);
+    }
+  });
+
+  return Array.from(valueMap.values());
+}
