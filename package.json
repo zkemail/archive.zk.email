@@ -12,7 +12,8 @@
 		"start": "next start",
 		"preinstall": "npx only-allow pnpm",
 		"check-types": "tsc --noEmit",
-		"lint": "next lint"
+		"lint": "next lint",
+		"start-cron": "tsx src/util/cron.ts"
 	},
 	"prisma": {
 		"seed": "tsx prisma/seed.ts"
@@ -39,9 +40,9 @@
 	},
 	"//": "prisma 5.11.0 needed for Prisma Client Python",
 	"devDependencies": {
-		"@types/cron": "^2.4.3",
 		"@types/lodash": "^4.17.10",
 		"@types/node": "^20.12.12",
+		"@types/node-cron": "^3.0.11",
 		"@types/react": "^18.3.3",
 		"@types/react-dom": "^18.3.0",
 		"@types/swagger-ui-react": "^4.18.3",

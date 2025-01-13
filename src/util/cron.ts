@@ -1,7 +1,7 @@
 import cron, { ScheduledTask } from "node-cron";
 import { updateJWKeySet } from "@/lib/db";
 
-let cronTask: ScheduledTask | null = null;
+let cronTask: ScheduledTask;
 let initialized = false;
 
 // Schedule the cron job to update JWKeySet every 5 minutes
@@ -12,15 +12,10 @@ export function startJWKCronJob() {
   }
 
   cron.schedule("*/5 * * * *", () => {
-    // console.log("Executing UpdateJWKCronJob...");
+    console.log("Executing UpdateJWKCronJob...");
     updateJWKeySet();
   });
   initialized = true;
 }
 
-export const stopCronJob = () => {
-  if (cronTask) {
-    cronTask.stop();
-    console.log("Cron job stopped.");
-  }
-};
+startJWKCronJob();
