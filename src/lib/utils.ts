@@ -52,8 +52,9 @@ export function parseDkimTagList(dkimValue: string): Record<string, string> {
 		const value = part.slice(i + 1).trim();
 		switch (key) {
 			case "v":
-				if(value !== 'DKIM1') {
-					throw new Error(`Unknown DKIM version: ${value}`);
+				if(value !== 'DKIM1' && value !== 'dkim1' && value !== '1') {
+					console.error(`Unknown DKIM version: ${value}`);
+					continue;
 				}
 				break;
 			case "p":
