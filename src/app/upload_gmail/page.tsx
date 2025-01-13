@@ -34,10 +34,11 @@ export default function Page() {
 		if (progressState === 'Paused') {
 			logmsg(progressState);
 		}
-		if (progressState === 'Running...') {
+		if (progressState === 'Running...' && nextPageToken) {
+			// Only continue upload if we have a next page token
 			uploadFromGmail(gmailQuery);
 		}
-	}, [nextPageToken, gmailQuery]);
+	}, [nextPageToken]);
 
 	if (status === "loading" && !session) {
 		return <p>loading...</p>
@@ -159,8 +160,21 @@ export default function Page() {
 			</div>
 			<div>
 				{showStartButton && <button style={actionButtonStyle} onClick={() => {
-					constructGmailQuery(startDate, endDate, domain);
-					uploadFromGmail(gmailQuery);
+					// Construct query directly to avoid race condition with state updates
+					const queryParts: string[] = [];
+					if (startDate) {
+						queryParts.push(`after:${startDate}`);
+					}
+					if (endDate) {
+						queryParts.push(`before:${endDate}`);
+					}
+					if (domain) {
+						queryParts.push(`from:${domain}`);
+					}
+					const newQuery = queryParts.join(" ");
+					console.log('Starting upload with query:', newQuery);
+					setGmailQuery(newQuery); // Set for UI consistency
+					uploadFromGmail(newQuery); // Use query directly
 				}}>Start</button>}
 				{showResumeButton && <button style={actionButtonStyle} onClick={() => {
 					uploadFromGmail(gmailQuery);
@@ -201,25 +215,6 @@ export default function Page() {
 		const month = String(date.getMonth() + 1).padStart(2, '0'); // Months are 0-based
 		const day = String(date.getDate()).padStart(2, '0');
 		return `${year}/${month}/${day}`;
-	}
-
-	function constructGmailQuery(startDate?: string, endDate?: string, domain?: string) {
-		console.log('constructGmailQuery', startDate, endDate, domain);
-		let queryParts: string[] = [];
-	
-		if (startDate) {
-			queryParts.push(`after:${startDate}`);
-		}
-	
-		if (endDate) {
-			queryParts.push(`before:${endDate}`);
-		}
-	
-		if (domain) {
-			queryParts.push(`from:${domain}`);
-		}
-	
-		setGmailQuery(queryParts.join(" "));
 	}
 
 	async function uploadFromGmail(currentGmailQuery: string) {
