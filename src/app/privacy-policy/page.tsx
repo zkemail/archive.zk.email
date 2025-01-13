@@ -9,7 +9,7 @@ export default function Page() {
 			<p><strong>Information we access:</strong></p>
 			<ul>
 				<li><strong>User email address:</strong> When you sign in with your Gmail account to contribute domains and selectors, we use your email address solely for displaying it to you within the platform.</li>
-				<li><strong>Email metadata:</strong> With your consent, we access your email message metadata, specifically the header fields, to extract domains and selectors from the <code>DKIM-Signature</code> header field.</li>
+				<li><strong>Email message:</strong> With your consent, we access your email message, specifically the header fields, to extract domains and selectors from the <code>DKIM-Signature</code> header field.</li>
 			</ul>
 			<p><strong>Information we store:</strong></p>
 			<ul>
@@ -42,7 +42,7 @@ export default function Page() {
 			<p><strong>Your choices:</strong></p>
 			<ul>
 				<li>You can choose not to contribute domains and selectors by not using the "Upload from Gmail" feature.</li>
-				<li>You can revoke your consent for us to access your email message metadata at any time by managing your Gmail app permissions.</li>
+				<li>You can revoke your consent for us to access your email message at any time by managing your Gmail app permissions.</li>
 				<li>You can request to delete your user account by contacting us.</li>
 			</ul>
 			<p><strong>Changes to this privacy policy:</strong></p>
