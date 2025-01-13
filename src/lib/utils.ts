@@ -206,7 +206,7 @@ export async function fetchJsonWebKeySet(): Promise<string> {
     return jsonWebKeySet;
   } catch (error) {
     console.error('Error fetching JSON Web Key Set:', error);
-    throw error;
+    return "";
   }
 }
 
@@ -221,6 +221,6 @@ export async function fetchx509Cert(): Promise<string> {
     return x509Cert;
   } catch (error) {
     console.error('Error fetching X.509 certificate:', error);
-    throw error;
+    return "";
   }
 }

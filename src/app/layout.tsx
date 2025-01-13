@@ -3,7 +3,6 @@ import { Inter } from "next/font/google";
 import Link from "next/link";
 import "./globals.css";
 import { NextAuthProvider } from "./session-provider";
-import { startJWKCronJob, stopCronJob } from "@/util/cron";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -32,25 +31,6 @@ const DevModeNotice: React.FC = () => {
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
-  // To ensure it runs only on the server side
-  if (typeof window === "undefined") {  
-    // console.log("Starting UpdateJWKCronJob...");
-    startJWKCronJob();
-
-    // Handles graceful termination of cron job.
-    process.on("SIGINT", () => {
-      console.log("Received SIGINT. Gracefully shutting down...");
-      stopCronJob();
-      process.exit(0);
-    });
-
-    process.on("SIGTERM", () => {
-      console.log("Received SIGTERM. Gracefully shutting down...");
-      stopCronJob();
-      process.exit(0);
-    });
-  }
-  
   return (
     <html lang="en">
       <NextAuthProvider>

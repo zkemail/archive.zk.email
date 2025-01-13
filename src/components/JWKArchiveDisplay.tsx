@@ -78,9 +78,14 @@ export const JWKArchiveDisplayList: FC<JWKArchiveDisplayListProps> = () => {
 
   return (
     <div>
-      {records.map(record => (
-        <JWKArchiveDisplay key={record.id} data={record} />
-      ))}
+      {records.length === 0 ? (
+        <p>No records available.</p>
+      ) : (
+        records.map(record => (
+          <JWKArchiveDisplay key={record.id} data={record} />
+        ))
+      )}
     </div>
   );
+
 };
