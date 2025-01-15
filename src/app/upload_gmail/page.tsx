@@ -41,12 +41,30 @@ export default function Page() {
 
 	const domainInputRef = useRef<HTMLInputElement>(null);
 
+	function constructGmailQuery(startDate?: string, endDate?: string, domain?: string): string {
+		console.log('constructGmailQuery', startDate, endDate, domain);
+		let queryParts: string[] = [];
+	
+		if (startDate) {
+			queryParts.push(`after:${startDate}`);
+		}
+	
+		if (endDate) {
+			queryParts.push(`before:${endDate}`);
+		}
+	
+		if (domain) {
+			queryParts.push(`from:${domain}`);
+		}
+	
+		return queryParts.join(" ");
+	}
+
 	useEffect(() => {
 		if (progressState === 'Paused') {
 			logmsg(progressState);
 		}
 		if (progressState === 'Running...' && nextPageToken) {
-			// Only continue upload if we have a next page token
 			uploadFromGmail(gmailQuery);
 		}
 	}, [nextPageToken]);
@@ -194,26 +212,11 @@ export default function Page() {
 			</div>
 			<div>
 				{showStartButton && <button style={actionButtonStyle} onClick={() => {
-					// Detect if we need readonly scope based on query parameters
 					const requiresReadonly = detectQueryNeedsReadonlyScope(startDate, endDate, domain);
 					setNeedsReadonlyScope(requiresReadonly);
-					console.log('Query requires readonly scope:', requiresReadonly);
-
-					// Construct query directly to avoid race condition with state updates
-					const queryParts: string[] = [];
-					if (startDate) {
-						queryParts.push(`after:${startDate}`);
-					}
-					if (endDate) {
-						queryParts.push(`before:${endDate}`);
-					}
-					if (domain) {
-						queryParts.push(`from:${domain}`);
-					}
-					const newQuery = queryParts.join(" ");
-					console.log('Starting upload with query:', newQuery);
-					setGmailQuery(newQuery); // Set for UI consistency
-					uploadFromGmail(newQuery); // Use query directly
+					const query = constructGmailQuery(startDate, endDate, domain);
+					setGmailQuery(query);
+					uploadFromGmail(query);
 				}}>Start</button>}
 				{showResumeButton && <button style={actionButtonStyle} onClick={() => {
 					uploadFromGmail(gmailQuery);
