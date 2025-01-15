@@ -7,6 +7,14 @@ export type DomainAndSelector = {
 	selector: string
 };
 
+export type jwkSet = {
+	id: number;
+  	x509Certificate: string;
+  	jwks: string;
+  	lastUpdated: Date;
+  	provenanceVerified: boolean | null;
+}
+
 export interface DnsDkimFetchResult {
 	domain: string;
 	selector: string;
@@ -72,6 +80,18 @@ export function getCanonicalRecordString(dsp: DomainAndSelector, dkimRecordValue
 	return `${dsp.selector}._domainkey.${dsp.domain} TXT "${dkimRecordValue}"`;
 }
 
+export function getCanonicalJWKRecordString(
+  jwkSet: jwkSet 
+): string {
+	const canonicalObject = {
+    x509Certificate: jwkSet.x509Certificate,
+    jwks: jwkSet.jwks,
+    lastUpdated: jwkSet.lastUpdated,
+    provenanceVerified: jwkSet.provenanceVerified,
+  };
+  
+  return JSON.stringify(canonicalObject, Object.keys(canonicalObject).sort());
+}
 
 function dataToMessage(data: any): string {
 	if (!data) {
@@ -171,4 +191,39 @@ export function keySourceIdentifierToHumanReadable(sourceIdentifierStr: string) 
 		case 'unknown':
 			return 'Unknown';
 	}
+}
+
+export async function fetchJsonWebKeySet(): Promise<string> {
+  try {
+    const response = await fetch('https://www.googleapis.com/oauth2/v3/certs');
+    if (!response.ok) {
+      throw new Error('Cannot fetch Google JSON Web Key Set');
+    }
+    const jsonData = await response.json();
+	console.log(jsonData);
+    const jsonWebKeySet = JSON.stringify(
+      jsonData,
+      null,
+      2
+    );
+    return jsonWebKeySet;
+  } catch (error) {
+    console.error('Error fetching JSON Web Key Set:', error);
+    return "";
+  }
+}
+
+export async function fetchx509Cert(): Promise<string> {
+  try {
+    const response = await fetch('https://www.googleapis.com/oauth2/v1/certs');
+    if (!response.ok) {
+      throw new Error('Cannot fetch Google X.509 certificate');
+    }
+    const jsonData = await response.json();
+    const x509Cert = JSON.stringify(jsonData,  Object.keys(jsonData).sort(), 2);
+    return x509Cert;
+  } catch (error) {
+    console.error('Error fetching X.509 certificate:', error);
+    return "";
+  }
 }

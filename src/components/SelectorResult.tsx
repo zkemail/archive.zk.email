@@ -23,12 +23,11 @@ const Row: FC<RowProps> = ({ label: title, children }) => {
 const witness = new WitnessClient();
 
 interface ProvenanceIconProps {
-	record: RecordWithSelector;
+	canonicalString: string;
 }
 
-const ProvenanceIcon: FC<ProvenanceIconProps> = ({ record }) => {
-	const canonicalRecordString = getCanonicalRecordString(record.domainSelectorPair, record.value);
-	const leafHash = witness.hash(canonicalRecordString);
+export const ProvenanceIcon: FC<ProvenanceIconProps> = ({ canonicalString }) => {
+	const leafHash = witness.hash(canonicalString);
 	const witnessUrl = `https://scan.witness.co/leaf/${leafHash}`;
 	return (
 		<a href={witnessUrl} target="_blank" rel="noreferrer">
@@ -54,7 +53,7 @@ export const SelectorResult: React.FC<SelectorResultProps> = ({ record }) => {
 			<Row label='Selector:'>{record.domainSelectorPair.selector}</Row>
 			<Row label='First seen at:'>
 				<Timestamp date={record.firstSeenAt} />&nbsp;
-				{record.provenanceVerified && <ProvenanceIcon record={record} />}
+				{record.provenanceVerified && <ProvenanceIcon canonicalString={getCanonicalRecordString(record.domainSelectorPair, record.value)} />}
 			</Row>
 			{record.lastSeenAt &&
 				<Row label='Last seen at:'>
