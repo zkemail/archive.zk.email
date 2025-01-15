@@ -50,45 +50,12 @@ export function parseDkimTagList(dkimValue: string): Record<string, string> {
 		}
 		const key = part.slice(0, i).trim();
 		const value = part.slice(i + 1).trim();
-		switch (key) {
-			case "v":
-				if(value !== 'DKIM1' && value !== 'dkim1' && value !== '1') {
-					console.error(`Unknown DKIM version: ${value}`);
-					continue;
-				}
-				break;
-			case "p":
-				if (isBase64(value)) {
-					const modifiedValue = pemHeader + value.replace(/\s/g, "\n") + pemFooter;
-					console.log(modifiedValue);
-					try {
-						const publicKey = crypto.createPublicKey(modifiedValue);
-						// console.log(publicKey.asymmetricKeyType);
-						// console.log(publicKey.asymmetricKeyDetails?.modulusLength);
-						if (publicKey.asymmetricKeyType === "rsa" && [512, 1024, 2048, 4096].includes(publicKey.asymmetricKeyDetails?.modulusLength!)) {
-							result[key] = value;
-						}
-						else if ( publicKey.asymmetricKeyType === "ed25519" && publicKey.asymmetricKeyDetails?.modulusLength === 256 ) {
-							result[key] = value;
-						} else {
-							console.error("Invalid public key passed value for key p: ${value}");
-							continue;
-						}
-					} catch (error) {
-						console.error(`Invalid public key passed value for key p: ${value} ${error}`);
-						continue;
-					}
-				} else {
-					console.error(`Invalid base64 value for key p: ${value}`);
-					continue;
-				}
-				break;
-			default:
-				if (result.hasOwnProperty(key)) {
-					// duplicate key, keep the first one
-					continue;
-				}
-				break;
+		if (result.hasOwnProperty(key)) {
+			// duplicate key, keep the longer value
+			if (value.length > result[key].length) {
+				result[key] = value;
+			}
+			continue;
 		}
 		result[key] = value;
 	}
