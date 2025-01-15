@@ -1,4 +1,21 @@
-import { Session, TokenSet } from "next-auth"
+import { Session as NextAuthSession, TokenSet } from "next-auth"
+
+// Define our custom session properties
+export interface CustomSession {
+	error?: string;
+	has_gmail_scope?: boolean;
+	has_gmail_readonly?: boolean;
+	has_gmail_metadata?: boolean;
+	expires: string;
+	user?: {
+		email?: string | null;
+		name?: string | null;
+		image?: string | null;
+	};
+}
+
+// Use type assertion to combine NextAuth Session with our custom properties
+export type Session = CustomSession;
 import GoogleProvider from "next-auth/providers/google"
 
 // https://authjs.dev/guides/basics/refresh-token-rotation?frameworks=core
@@ -12,6 +29,7 @@ export const authOptions = {
 				params: {
 					prompt: "consent",
 					access_type: "offline",
+					// Default to metadata scope, can be overridden by client-side signIn
 					scope: 'https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/gmail.metadata',
 				},
 			},
@@ -62,14 +80,24 @@ export const authOptions = {
 		},
 		async session({ session, token }: { session: any, token: any }): Promise<Session> {
 			let has_gmail_scope: boolean | undefined = undefined;
-			if (typeof token.scope == 'string') {
-				has_gmail_scope = token.scope.split(' ').includes('https://www.googleapis.com/auth/gmail.readonly')
+			let has_gmail_readonly: boolean | undefined = undefined;
+			let has_gmail_metadata: boolean | undefined = undefined;
+
+			if (typeof token.scope === 'string') {
+				const scopes = token.scope.split(' ');
+				has_gmail_readonly = scopes.includes('https://www.googleapis.com/auth/gmail.readonly');
+				has_gmail_metadata = scopes.includes('https://www.googleapis.com/auth/gmail.metadata');
+				// Consider either scope as valid for backward compatibility
+				has_gmail_scope = has_gmail_readonly || has_gmail_metadata;
 			}
+
 			let sessionResponse = {
 				error: token.error,
 				expires: session.expires,
 				user: session.user,
 				has_gmail_scope,
+				has_gmail_readonly,
+				has_gmail_metadata,
 			}
 			return sessionResponse
 		},

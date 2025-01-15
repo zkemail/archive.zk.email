@@ -24,9 +24,20 @@ export default function Page() {
 	const [startDate, setStartDate] = React.useState<string>('');
 	const [endDate, setEndDate] = React.useState<string>('');
 	const [domain, setDomain] = React.useState<string>('');
+	const [needsReadonlyScope, setNeedsReadonlyScope] = React.useState<boolean>(false);
+
+	// Check if we need readonly scope when component mounts or when query params change
+	useEffect(() => {
+		const requiresReadonly = detectQueryNeedsReadonlyScope(startDate, endDate, domain);
+		setNeedsReadonlyScope(requiresReadonly);
+	}, [startDate, endDate, domain]);
 
 	type ProgressState = 'Not started' | 'Running...' | 'Paused' | 'Interrupted' | 'Completed';
 	const [progressState, setProgressState] = React.useState<ProgressState>('Not started');
+
+	function detectQueryNeedsReadonlyScope(startDate?: string, endDate?: string, domain?: string): boolean {
+		return !!(startDate || endDate || domain);
+	}
 
 	const domainInputRef = useRef<HTMLInputElement>(null);
 
@@ -59,44 +70,62 @@ export default function Page() {
 				The email access tokens are only stored on the user's browser. The server does not store any tokens.
 				For more information, see the <a href="/privacy-policy">privacy policy</a>.
 			</p>
-			<button onClick={() => signIn("google")} className={googleButtonStyles.googleSignInButton}>
-        <svg className={googleButtonStyles.googleIcon} viewBox="0 0 24 24">
-          <path
-            fill="#4285F4"
-            d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
-          />
-          <path
-            fill="#34A853"
-            d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
-          />
-          <path
-            fill="#FBBC05"
-            d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"
-          />
-          <path
-            fill="#EA4335"
-            d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
-          />
-          <path fill="none" d="M1 1h22v22H1z" />
-        </svg>
-        Sign in with Google
+			<button
+				onClick={() => signIn("google", {
+					scope: needsReadonlyScope
+						? "https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/gmail.readonly"
+						: "https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/gmail.metadata"
+				})}
+				className={googleButtonStyles.googleSignInButton}
+			>
+				<svg className={googleButtonStyles.googleIcon} viewBox="0 0 24 24">
+					<path
+						fill="#4285F4"
+						d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
+					/>
+					<path
+						fill="#34A853"
+						d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
+					/>
+					<path
+						fill="#FBBC05"
+						d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"
+					/>
+					<path
+						fill="#EA4335"
+						d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
+					/>
+					<path fill="none" d="M1 1h22v22H1z" />
+				</svg>
+				Sign in with Google {needsReadonlyScope ? "(Full Access)" : "(Metadata Only)"}
       </button>
 		</div>
 	}
 
 
 	function InsufficientPermissions(): React.ReactNode {
+		const requiredScope = needsReadonlyScope ? "full email access" : "email metadata access";
+		const scopeReason = needsReadonlyScope 
+			? "You need full access because you've specified search criteria (dates or domain). This allows searching email content."
+			: "Only metadata access is required when no search criteria are specified. This is more privacy-friendly as it only accesses email headers.";
+		
 		return <div>
 			<h3>
 				Insufficient permissions
 			</h3>
 			<p>
-				To use this feature, you need to grant permission for the site to access email message.
-				To do this, <b><a href="#" onClick={() => signOut()}>sign out</a></b> and sign in again,
-				and during the sign-in process, give permission to access email message:
+				To use this feature with your current settings, you need to grant permission for {requiredScope}.
+				{scopeReason}
 			</p>
 			<p>
-				<img src="/grant_metadata_scope.png" alt="instruction to grant scope" />
+				To update permissions, <b><a href="#" onClick={() => signOut()}>sign out</a></b> and sign in again.
+				During the sign-in process, make sure to grant the requested permissions:
+			</p>
+			<p>
+				<img 
+					src={needsReadonlyScope ? "/grant_readonly_scope.png" : "/grant_metadata_scope.png"} 
+					alt={`instruction to grant ${requiredScope}`} 
+				/>
 			</p>
 		</div>
 	}
@@ -125,7 +154,12 @@ export default function Page() {
 				Progress: {progressState}
 			</div>
 			<div style={{ display: 'flex', flexDirection: 'column' }}>
-				<div style={{ fontStyle: 'italic', color: '#555' }}>The folowing fields are optional:</div>
+				<div style={{ fontStyle: 'italic', color: '#555' }}>
+					The following fields are optional. Note: Using any of these fields requires full Gmail access instead of just metadata access.
+					{needsReadonlyScope && <div style={{ color: '#d32f2f', marginTop: '0.5rem' }}>
+						Currently using search criteria - full access will be required when you start the upload.
+					</div>}
+				</div>
 				<label>
 					Start Date:
 					<input
@@ -160,6 +194,11 @@ export default function Page() {
 			</div>
 			<div>
 				{showStartButton && <button style={actionButtonStyle} onClick={() => {
+					// Detect if we need readonly scope based on query parameters
+					const requiresReadonly = detectQueryNeedsReadonlyScope(startDate, endDate, domain);
+					setNeedsReadonlyScope(requiresReadonly);
+					console.log('Query requires readonly scope:', requiresReadonly);
+
 					// Construct query directly to avoid race condition with state updates
 					const queryParts: string[] = [];
 					if (startDate) {
