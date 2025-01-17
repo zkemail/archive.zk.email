@@ -2,6 +2,7 @@
 
 import React, { useEffect, useRef } from "react";
 import { useSession, signIn, signOut } from "next-auth/react"
+import type { Session } from "@/app/auth"
 import { LogConsole, LogRecord } from "@/components/LogConsole";
 import { axiosErrorMessage, truncate } from "@/lib/utils";
 import axios from "axios";
@@ -13,7 +14,7 @@ export default function Page() {
 
 	const gmailApiUrl = 'api/gmail';
 
-	const { data: session, status, update } = useSession()
+	const { data: session, status, update } = useSession() as { data: Session | null, status: string, update: () => Promise<Session | null> }
 	const [log, setLog] = React.useState<LogRecord[]>([]);
 	const [uploadedPairs, setUploadedPairs] = React.useState<Set<string>>(new Set());
 	const [addedPairs, setAddedPairs] = React.useState<number>(0);
@@ -30,7 +31,14 @@ export default function Page() {
 	useEffect(() => {
 		const requiresReadonly = detectQueryNeedsReadonlyScope(startDate, endDate, domain);
 		setNeedsReadonlyScope(requiresReadonly);
-	}, [startDate, endDate, domain]);
+
+		// Check if we need to trigger re-auth when domain is added
+		if (domain && session?.has_gmail_metadata && !session?.has_gmail_readonly) {
+			console.log('Domain specified with only metadata scope - requires re-authentication');
+			// Force sign out to trigger re-auth with readonly scope
+			signOut();
+		}
+	}, [startDate, endDate, domain, session?.has_gmail_metadata, session?.has_gmail_readonly]);
 
 	type ProgressState = 'Not started' | 'Running...' | 'Paused' | 'Interrupted' | 'Completed';
 	const [progressState, setProgressState] = React.useState<ProgressState>('Not started');
@@ -89,11 +97,15 @@ export default function Page() {
 				For more information, see the <a href="/privacy-policy">privacy policy</a>.
 			</p>
 			<button
-				onClick={() => signIn("google", {
-					scope: needsReadonlyScope
-						? "https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/gmail.readonly"
-						: "https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/gmail.metadata"
-				})}
+				onClick={() => {
+					// Determine required scope based on current query parameters
+					const requiresReadonly = detectQueryNeedsReadonlyScope(startDate, endDate, domain);
+					signIn("google", {
+						scope: requiresReadonly
+							? "https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/gmail.readonly"
+							: "https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/gmail.metadata"
+					});
+				}}
 				className={googleButtonStyles.googleSignInButton}
 			>
 				<svg className={googleButtonStyles.googleIcon} viewBox="0 0 24 24">
@@ -124,7 +136,9 @@ export default function Page() {
 	function InsufficientPermissions(): React.ReactNode {
 		const requiredScope = needsReadonlyScope ? "full email access" : "email metadata access";
 		const scopeReason = needsReadonlyScope 
-			? "You need full access because you've specified search criteria (dates or domain). This allows searching email content."
+			? domain 
+				? "You need full access because you've specified a domain for searching. This requires accessing email content to search by sender domain."
+				: "You need full access because you've specified search criteria (dates). This allows searching email content."
 			: "Only metadata access is required when no search criteria are specified. This is more privacy-friendly as it only accesses email headers.";
 		
 		return <div>
@@ -173,9 +187,11 @@ export default function Page() {
 			</div>
 			<div style={{ display: 'flex', flexDirection: 'column' }}>
 				<div style={{ fontStyle: 'italic', color: '#555' }}>
-					The following fields are optional. Note: Using any of these fields requires full Gmail access instead of just metadata access.
+					The following fields are optional. Note: Using any of these fields requires full Gmail access permissions.
 					{needsReadonlyScope && <div style={{ color: '#d32f2f', marginTop: '0.5rem' }}>
-						Currently using search criteria - full access will be required when you start the upload.
+						{domain ? 
+							"You've specified a domain - you'll need to sign in again to grant full access permissions." :
+							"Using search criteria will require full access permissions when you start the upload."}
 					</div>}
 				</div>
 				<label>
@@ -304,7 +320,23 @@ export default function Page() {
 
 	function handleDomainChange() {
 		if (domainInputRef.current) {
-			setDomain(domainInputRef.current.value);
+			const newDomain = domainInputRef.current.value;
+			
+			// Detect if we're switching from no domain to having a domain
+			const isAddingDomain = !domain && newDomain;
+			
+			// Check if we need to trigger re-auth (metadata only -> domain added)
+			const needsReauth = isAddingDomain && session?.has_gmail_metadata && !session?.has_gmail_readonly;
+			
+			// Update domain state
+			setDomain(newDomain);
+			
+			// Store that we need re-auth if adding domain with only metadata scope
+			if (needsReauth) {
+				console.log('Domain added while having only metadata scope - will need re-authentication');
+				setNeedsReadonlyScope(true);
+				alert("You've specified a domain, which requires full Gmail access permissions. You will need to sign in again to grant these permissions.");
+			}
 		}
 	}
 
