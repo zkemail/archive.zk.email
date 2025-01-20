@@ -3,7 +3,7 @@ import argparse
 import pypff
 import email.parser
 from dataclasses import dataclass
-from typing import cast
+from typing import cast, Any, Union
 from dkim_util import decode_dkim_tag_value_list
 
 
@@ -34,7 +34,7 @@ def parse_header(data: str):
 		dsps.add(f'{domain}\t{selector}')
 
 
-def parse_message(msg):
+def parse_message(msg: pypff.message) -> None:
 	for record_set in msg.record_sets:
 		for entry in record_set.entries:
 			if (PR_TRANSPORT_MESSAGE_HEADERS.match(entry.get_entry_type(), entry.get_value_type())):
@@ -43,7 +43,7 @@ def parse_message(msg):
 				parse_header(header_data)
 
 
-def parse_item(index: int, item, depth: int):
+def parse_item(index: int, item: Union[pypff.message, pypff.folder, Any], depth: int) -> None:
 	indent = '    ' * depth
 	if isinstance(item, pypff.message):
 		print(f'{indent}{type(item)} {index}: "{item.subject}"', file=sys.stderr)
@@ -59,7 +59,7 @@ def parse_item(index: int, item, depth: int):
 				parse_item(i, sub_item, depth + 1)
 
 
-def decode_pst():
+def decode_pst() -> None:
 	parser = argparse.ArgumentParser(description='extract domains and selectors from the DKIM-Signature header fields in a PST file and output them in TSV format')
 	parser.add_argument('pst_file')
 	args = parser.parse_args()

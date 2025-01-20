@@ -18,6 +18,9 @@ import httpx
 from tqdm import tqdm
 from typing import Any
 import gmpy2  # type: ignore
+from pathlib import Path
+sys.path.append(str(Path(__file__).absolute().parent.parent.parent.parent))  
+from src.util.dkim_util import decode_dkim_tag_value_list
 
 gmpy2_mpz: Any = gmpy2.mpz  # type: ignore
 gmpy2_gcd: Any = gmpy2.gcd  # type: ignore
@@ -53,6 +56,8 @@ async def has_known_keys(prisma: Prisma, dsp: Dsp, dspsWithKnownKeys: set[Dsp]) 
 		return True
 	return False
 
+# Validate a signature with a key
+# This is used to sanity check messages we scraped
 async def validate_signature(keyData: str, sig: EmailSignature) -> bool:
     try:
         # Try a few different approaches to verify the signature
@@ -118,26 +123,37 @@ async def check_adjacent_sigs(dsp: Dsp, sig: EmailSignature, prisma: Prisma) -> 
         # If signature is just before the first seen date
         if sig_time < record.firstSeenAt:
             logging.info(f'signature {sig.id} is just before the first seen date {record.firstSeenAt}')
-            # Validate signature with this key
-            if record.keyData and await validate_signature(record.keyData, sig):
-                # If valid, update firstSeenAt
-                await prisma.dkimrecord.update(
-                    where={'id': record.id},
-                    data={'firstSeenAt': sig_time}
-                )
-                return True
+            # If this signature validates with this key, then we can just update the firstSeenAt
+            # TODO: Uncomment this
+            # if record.keyData and await validate_signature(record.keyData, sig):
+            #     # If valid, update firstSeenAt
+            #     await prisma.dkimrecord.update(
+            #         where={'id': record.id},
+            #         data={'firstSeenAt': sig_time}
+            #     )
+            #     return True
 
         # If signature is just after the last seen date  
-        if sig_time > record.lastSeenAt:
+        elif sig_time > record.lastSeenAt:
             logging.info(f'signature {sig.id} is just after the last seen date {record.lastSeenAt}')
-            # Validate signature with this key
+            # If this signature validates with this key, then we can just update the lastSeenAt
+            # TODO: Uncomment this
+            # if record.keyData and await validate_signature(record.keyData, sig):
+            #     # If valid, update lastSeenAt
+            #     await prisma.dkimrecord.update(
+            #         where={'id': record.id}, 
+            #         data={'lastSeenAt': sig_time}
+            #     )
+            #     return True
+              
+        else:
+            logging.info(f'signature {sig.id} is within the key period {record.firstSeenAt} to {record.lastSeenAt}')
+            # Sanity check that the signature validates with the key
             if record.keyData and await validate_signature(record.keyData, sig):
-                # If valid, update lastSeenAt
-                await prisma.dkimrecord.update(
-                    where={'id': record.id}, 
-                    data={'lastSeenAt': sig_time}
-                )
-                return True
+                logging.info(f'signature {sig.id} validates with key {record.keyData}')
+            else:
+                logging.info(f'signature {sig.id} does not validate with key {record.keyData}, something is wrong')
+                sys.exit(0)
     return False
 
 async def find_key_for_signature_pair(dsp: Dsp, sig1: EmailSignature, sig2: EmailSignature, prisma: Prisma):
@@ -213,21 +229,24 @@ async def check_for_matching_key_period(dsp: Dsp, sig1: EmailSignature, sig2: Em
 			matching_keys = [k for k in keys if k["selector"] == dsp.selector]
 					
 			for key in matching_keys:
+				logging.info(f"Checking key {key['value']}")
+				keyBase64 = decode_dkim_tag_value_list(key['value']).get('p') 
 				first_seen = datetime.fromisoformat(key["firstSeenAt"].replace("Z", "+00:00"))
 				last_seen = datetime.fromisoformat(key["lastSeenAt"].replace("Z", "+00:00"))
 				
+				# If the signature timestamp falls within the key period, validate the signature with the key and double check it matches
 				if sig1.timestamp and first_seen <= sig1.timestamp <= last_seen:
 					timestamp_1_covered = True
 					try:
-						logging.info(f"Validating correct signature {sig1.id} with key {key['keyData']}")
-						await validate_signature(key["keyData"], sig1)
+						logging.info(f"Doublechecking correct signature {sig1.id} validates with key {keyBase64}")
+						await validate_signature(key["value"], sig1)
 					except Exception as e:
 						logging.error(f"Signature validation failed: {e}")
 				if sig2.timestamp and first_seen <= sig2.timestamp <= last_seen:
 					timestamp_2_covered = True
 					try:
-						logging.info(f"Validating correct signature {sig2.id} with key {key['keyData']}")
-						await validate_signature(key["keyData"], sig2)
+						logging.info(f"Doublechecking correct signature {sig2.id} validates with key {keyBase64}")
+						await validate_signature(key["value"], sig2)
 					except Exception as e:
 						logging.error(f"Signature validation failed: {e}")
 				if timestamp_1_covered and timestamp_2_covered:
@@ -235,8 +254,10 @@ async def check_for_matching_key_period(dsp: Dsp, sig1: EmailSignature, sig2: Em
 											f"({first_seen} to {last_seen})")
 					# Validate signatures and exit for testing
 					try:
-						await validate_signature(key["keyData"], sig1)
-						await validate_signature(key["keyData"], sig2)
+						logging.info(f"Doublechecking correct signature {sig1.id} validates with key {keyBase64}")	
+						await validate_signature(key["value"], sig1)
+						logging.info(f"Doublechecking correct signature {sig2.id} validates with key {keyBase64}")
+						await validate_signature(key["value"], sig2)
 						logging.info("Signature validation successful")
 					except Exception as e:
 						logging.error(f"Signature validation failed: {e}")
@@ -276,8 +297,6 @@ async def main():
 				pbar.set_postfix_str(f"Keys known for {dsp.domain} {dsp.selector}")
 			else:
 				pbar.set_postfix_str(f"Searching {dsp.domain} {dsp.selector}")
-			if(dsp.domain == "accounts.google.com"):
-				continue
 			pbar.update(1)
 			if len(sigs) >= 2:
 				# Sort signatures by timestamp
