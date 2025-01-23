@@ -124,6 +124,7 @@ async def check_adjacent_sigs(dsp: Dsp, sig: EmailSignature, prisma: Prisma) -> 
             # If this signature validates with this key, then we can just update the firstSeenAt
             if record.keyData and await validate_signature(record.keyData, sig):
                 # If valid, update firstSeenAt
+                logging.info(f'signature {sig.id} before time period validates with key {record.keyData} found from {record.source}')
                 await prisma.dkimrecord.update(
                     where={'id': record.id},
                     data={'firstSeenAt': sig_time}
@@ -136,6 +137,7 @@ async def check_adjacent_sigs(dsp: Dsp, sig: EmailSignature, prisma: Prisma) -> 
             # If this signature validates with this key, then we can just update the lastSeenAt
             if record.keyData and await validate_signature(record.keyData, sig):
                 # If valid, update lastSeenAt
+                logging.info(f'signature {sig.id} after time period validates with key {record.keyData} found from {record.source}')
                 await prisma.dkimrecord.update(
                     where={'id': record.id}, 
                     data={'lastSeenAt': sig_time}
@@ -147,9 +149,9 @@ async def check_adjacent_sigs(dsp: Dsp, sig: EmailSignature, prisma: Prisma) -> 
             logging.info(f'signature {sig.id} is within the key period {record.firstSeenAt} to {record.lastSeenAt}')
             # Sanity check that the signature validates with the key
             if record.keyData and await validate_signature(record.keyData, sig):
-                logging.info(f'signature {sig.id} validates with key {record.keyData}')
+                logging.info(f'signature {sig.id} within time period validates with key {record.keyData} found from {record.source}')
             else:
-                logging.info(f'signature {sig.id} does not validate with key {record.keyData}, something is wrong')
+                logging.info(f'signature {sig.id} does not validate with key {record.keyData} found from {record.source}, something is wrong')
                 sys.exit(0)
     return False
 
