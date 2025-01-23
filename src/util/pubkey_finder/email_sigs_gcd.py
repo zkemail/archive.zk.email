@@ -6,12 +6,12 @@ import os
 import subprocess
 from datetime import datetime
 from prisma import Prisma
-from prisma.models import EmailSignature
+from prisma.models import EmailSignature, DomainSelectorPair
 from prisma.enums import KeyType
 from Cryptodome.PublicKey import RSA
 from Cryptodome.Signature import PKCS1_v1_5 
 from Cryptodome.Hash import SHA256
-from gcd_solver import pkcs1_padding, message_sig_pair
+from gcd_solver import message_sig_pair, find_n
 from common import Dsp, get_date_interval
 import sys
 import httpx
@@ -27,20 +27,22 @@ gmpy2_gcd: Any = gmpy2.gcd  # type: ignore
 
 DspToSigs = dict[Dsp, list[EmailSignature]]
 
-
+# Find the public key for a pair of signatures
+# Note that loglevel is currently ignored, but used to be called when directly calling the gcd_solver.py script
 def find_key(dsp: Dsp, sig0: EmailSignature, sig1: EmailSignature, loglevel: int) -> str | None:
-	assert sys.executable.endswith('python3.10'), f"Expected python3.10, but got {sys.executable}"
-	cmd = [sys.executable, "src/util/pubkey_finder/gcd_solver.py", "--loglevel", str(loglevel)]
 	hashfn = 'sha256'
-	data_parameters = [sig0.headerHash, sig0.dkimSignature, sig1.headerHash, sig1.dkimSignature, hashfn]
-	logging.debug(" ".join(cmd) + ' [... data parameters ...]')
-
-	output = subprocess.check_output(cmd + data_parameters)
-	data = json.loads(output)
-	n = int(data['n_hex'], 16)
-	e = int(data['e_hex'], 16)
+	
+	# Call find_n directly
+	n, e = find_n(
+		[sig0.headerHash, sig1.headerHash],
+		[binascii.a2b_base64(sig0.dkimSignature), binascii.a2b_base64(sig1.dkimSignature)],
+		hashfn
+	)
+	
 	if (n < 2):
+		logging.info(f'No GCD found, n < 2...')
 		return None
+	
 	rsa_key = RSA.construct((n, e))
 	keyDER = rsa_key.exportKey(format='DER')
 	keyDER_base64 = binascii.b2a_base64(keyDER, newline=False).decode('utf-8')
@@ -64,8 +66,8 @@ async def validate_signature(keyData: str, sig: EmailSignature) -> bool:
         rsa_key = RSA.import_key(binascii.a2b_base64(keyData))
         verifier = PKCS1_v1_5.new(rsa_key)
         sig_bytes = binascii.a2b_base64(sig.dkimSignature)
-        logging.info(f'validating signature {sig.id} with message {sig.headerHash} and signature {sig.dkimSignature} with sig bytes {sig_bytes} with key {keyData}')
-        logging.info(f'Signature bytes length: {len(sig_bytes)}')
+        # logging.info(f'validating signature {sig.id} with message {sig.headerHash} and signature {sig.dkimSignature} with sig bytes {sig_bytes} with key {keyData}')
+        # logging.info(f'Signature bytes length: {len(sig_bytes)}')
  
         # Approach 1: Using raw hash bytes
         h = SHA256.new()
@@ -77,25 +79,21 @@ async def validate_signature(keyData: str, sig: EmailSignature) -> bool:
         # Approach 2: Using pkcs1 padding like in gcd_solver
         size_bytes = len(sig_bytes)
         message, signature = message_sig_pair(size_bytes, sig.headerHash, sig_bytes, 'sha256')
-
         decrypted = pow(signature, rsa_key.e, rsa_key.n)
-        logging.info(f'Approach 2 comparison:')
-        logging.info(f'Expected: {hex(message)}')
-        logging.info(f'Got:      {hex(decrypted)}')
-        
-        if pow(signature, rsa_key.e, rsa_key.n) == message:
+        if decrypted == message:
             logging.info(f'signature {sig.id} validated with pkcs1 padding')
             return True
-        
+        logging.info(f'signature {sig.id} did not validate with pkcs1 padding')
         return False
     except:
+        logging.info(f'signature {sig.id} errored with pkcs1 padding')
         return False
 
 
 # Check if the signature can be validated by either of the key records in the database, either the one before or the one after, and check if that key validates the signature, and if so then update the either starting or ending date in the database
 # Returns true if the signature was validated by either key and false otherwise
 async def check_adjacent_sigs(dsp: Dsp, sig: EmailSignature, prisma: Prisma) -> bool:
-    # Find the domain/selector pair record
+    # Find a domain/selector pair record to avoid a more expensive DB query
     logging.info(f'checking adjacent sigs for {dsp.domain}:{dsp.selector} at timestamp {sig.timestamp}')
     dsp_record = await prisma.domainselectorpair.find_first(
         where={'domain': dsp.domain, 'selector': dsp.selector}
@@ -124,28 +122,27 @@ async def check_adjacent_sigs(dsp: Dsp, sig: EmailSignature, prisma: Prisma) -> 
         if sig_time < record.firstSeenAt:
             logging.info(f'signature {sig.id} is just before the first seen date {record.firstSeenAt}')
             # If this signature validates with this key, then we can just update the firstSeenAt
-            # TODO: Uncomment this
-            # if record.keyData and await validate_signature(record.keyData, sig):
-            #     # If valid, update firstSeenAt
-            #     await prisma.dkimrecord.update(
-            #         where={'id': record.id},
-            #         data={'firstSeenAt': sig_time}
-            #     )
-            #     return True
+            if record.keyData and await validate_signature(record.keyData, sig):
+                # If valid, update firstSeenAt
+                await prisma.dkimrecord.update(
+                    where={'id': record.id},
+                    data={'firstSeenAt': sig_time}
+                )
+                return True
 
         # If signature is just after the last seen date  
         elif sig_time > record.lastSeenAt:
             logging.info(f'signature {sig.id} is just after the last seen date {record.lastSeenAt}')
             # If this signature validates with this key, then we can just update the lastSeenAt
-            # TODO: Uncomment this
-            # if record.keyData and await validate_signature(record.keyData, sig):
-            #     # If valid, update lastSeenAt
-            #     await prisma.dkimrecord.update(
-            #         where={'id': record.id}, 
-            #         data={'lastSeenAt': sig_time}
-            #     )
-            #     return True
-              
+            if record.keyData and await validate_signature(record.keyData, sig):
+                # If valid, update lastSeenAt
+                await prisma.dkimrecord.update(
+                    where={'id': record.id}, 
+                    data={'lastSeenAt': sig_time}
+                )
+                return True
+
+        # If signature is within the key period
         else:
             logging.info(f'signature {sig.id} is within the key period {record.firstSeenAt} to {record.lastSeenAt}')
             # Sanity check that the signature validates with the key
@@ -158,7 +155,7 @@ async def check_adjacent_sigs(dsp: Dsp, sig: EmailSignature, prisma: Prisma) -> 
 
 async def find_key_for_signature_pair(dsp: Dsp, sig1: EmailSignature, sig2: EmailSignature, prisma: Prisma):
 	info = f'dsp {dsp} and signatures {sig1.id} and {sig2.id}'
-	logging.info(f'run gcd solver for {info}')
+	logging.info(f'running gcd solver for {info}')
 	checked_adjacent_sigs1 = await check_adjacent_sigs(dsp, sig1, prisma)
 	checked_adjacent_sigs2 = await check_adjacent_sigs(dsp, sig2, prisma)
 	if checked_adjacent_sigs1 or checked_adjacent_sigs2:
@@ -167,9 +164,7 @@ async def find_key_for_signature_pair(dsp: Dsp, sig1: EmailSignature, sig2: Emai
 		return
 	p = find_key(dsp, sig1, sig2, logging.INFO)
 	if p:
-		logging.info(f'found public key for {info}, TEMPORARY EXIT for testing')
-		return
-		dsp_record = await prisma.domainselectorpair.find_first(where={'domain': dsp.domain, 'selector': dsp.selector})
+		dsp_record: DomainSelectorPair | None = await prisma.domainselectorpair.find_first(where={'domain': dsp.domain, 'selector': dsp.selector})
 		if dsp_record is None:
 			dsp_record = await prisma.domainselectorpair.create(data={'domain': dsp.domain, 'selector': dsp.selector, 'sourceIdentifier': 'public_key_gcd_batch'})
 			logging.info(f'created domain/selector pair: {dsp.domain} / {dsp.selector}')
@@ -197,8 +192,6 @@ async def find_key_for_signature_pair(dsp: Dsp, sig1: EmailSignature, sig2: Emai
 		    'timestamp': datetime.now(),
 		})
 	else:
-		logging.info(f'no public key found for {info}, TEMPORARY EXIT for testing')
-		return
 		await prisma.emailpairgcdresult.create(data={
 		    'emailSignatureA_id': sig1.id,
 		    'emailSignatureB_id': sig2.id,
@@ -278,10 +271,33 @@ async def check_for_matching_key_period(dsp: Dsp, sig1: EmailSignature, sig2: Em
 async def main():
 	logging.root.name = os.path.basename(__file__)
 	logging.getLogger("httpx").setLevel(logging.WARNING)
-	logging.basicConfig(level=logging.INFO, format='%(name)s: %(levelname)s: %(message)s')
+	
+	# Create formatters and handlers
+	formatter = logging.Formatter('%(name)s: %(levelname)s: %(message)s')
+	
+	# Console handler
+	console_handler = logging.StreamHandler()
+	console_handler.setFormatter(formatter)
+	
+	# File handler
+	file_handler = logging.FileHandler('email_sigs_gcd.log')
+	file_handler.setFormatter(formatter)
+	
+	# Set up root logger
+	root_logger = logging.getLogger()
+	root_logger.setLevel(logging.INFO)
+	root_logger.addHandler(console_handler)
+	root_logger.addHandler(file_handler)
+	
 	prisma = Prisma()
 	await prisma.connect()
-	email_signatures = await prisma.emailsignature.find_many()
+	domain_filter = os.environ.get('DOMAIN_FILTER') if os.environ.get('DOMAIN_FILTER') else "accounts.google.com"
+	if domain_filter:
+		email_signatures = await prisma.emailsignature.find_many(where={'domain': domain_filter})
+		logging.info(f"Filtering signatures for domain: {domain_filter}")
+	else:
+		email_signatures = await prisma.emailsignature.find_many()
+  
 	dspToSigs: DspToSigs = {}
 	dspsWithKnownKeys: set[Dsp] = set()
 	logging.info(f"filtering out email signatures for which we already have keys")
@@ -291,7 +307,7 @@ async def main():
 			dspToSigs[dsp] = []
 		dspToSigs[dsp].append(s)
 
-	with tqdm(total=len(dspToSigs), desc="Searching for public keys") as pbar:
+	with tqdm(total=len(dspToSigs), desc="Searching for public keys within unique domain/selector pairs") as pbar:
 		for dsp, sigs in dspToSigs.items():
 			if await has_known_keys(prisma, dsp, dspsWithKnownKeys):
 				pbar.set_postfix_str(f"Keys known for {dsp.domain} {dsp.selector}")
@@ -299,11 +315,13 @@ async def main():
 				pbar.set_postfix_str(f"Searching {dsp.domain} {dsp.selector}")
 			pbar.update(1)
 			if len(sigs) >= 2:
+				logging.info(f"running gcd solver for {dsp} and {len(sigs)} signatures")
 				# Sort signatures by timestamp
 				sorted_sigs = sorted(sigs, key=lambda s: s.timestamp if s.timestamp else datetime.max)
 				# Go through consecutive pairs
 				for i in range(len(sorted_sigs)-1):
 					sig1, sig2 = sorted_sigs[i], sorted_sigs[i+1]
+					# Check if the pair has already been processed
 					pairGcdResult = await prisma.emailpairgcdresult.find_first(
 							where={'OR': [
 									{
@@ -316,7 +334,7 @@ async def main():
 								},
 						]})
 					if pairGcdResult:
-						logging.info(f"EmailPairGcdResult already exists for signatures {sig1.id} and {sig2.id} at timestamp {pairGcdResult.timestamp} but our timestamps are {sig1.timestamp} and {sig2.timestamp}")
+						logging.info(f"EmailPairGcdResult already exists for signatures {sig1.id} and {sig2.id} at timestamp {pairGcdResult.timestamp} and success status {pairGcdResult.foundGcd}")
 						continue
 					# logging.info(f"might theoretically run gcd solver for {dsp} and timestamps {sig1.timestamp} and {sig2.timestamp}")
 					shouldFindMatch = await check_for_matching_key_period(dsp, sig1, sig2)
