@@ -57,7 +57,11 @@ async function handleMessage(
     let addResult = await addDomainSelectorPair(domain, selector, "api");
 
     let domainSelectorPair = { domain, selector };
-    resultArray.push({ addResult, domainSelectorPair });
+    resultArray.push({
+      addResult,
+      domainSelectorPair,
+      mailTimestamp: internalDate?.toString(),
+    });
   }
   return resultArray;
 }
@@ -65,6 +69,7 @@ async function handleMessage(
 type AddDspResult = {
   addResult: AddResult;
   domainSelectorPair: DomainAndSelector;
+  mailTimestamp?: String;
 };
 
 export type GmailResponse = {

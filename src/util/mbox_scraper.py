@@ -5,18 +5,21 @@ import mailbox
 from dkim_util import decode_dkim_tag_value_list
 
 
-def add_to_dict(dct: dict[str, list[str]], domain: str, selector: str):
+def add_to_dict(dct: dict[str, list[str]], domain: str, selector: str, date: str):
 	if (not selector) or (not domain):
 		return
 	if domain not in dct:
 		dct[domain] = []
-	if selector not in dct[domain]:
-		dct[domain].append(selector)
+	entry = f'{selector}:{date}'
+	if entry not in dct[domain]:
+		dct[domain].append(entry)
+
 
 
 def get_domain_selectors(outputDict: dict[str, list[str]], mboxFile: str):
 	print(f'processing {mboxFile}', file=sys.stderr)
 	for message in mailbox.mbox(mboxFile):
+		date = message['Date']         
 		dkimSignatures = message.get_all('DKIM-Signature')
 		if not dkimSignatures:
 			continue
@@ -24,7 +27,7 @@ def get_domain_selectors(outputDict: dict[str, list[str]], mboxFile: str):
 			dkimRecord = decode_dkim_tag_value_list(dkimSignature)
 			domain = dkimRecord['d']
 			selector = dkimRecord['s']
-			add_to_dict(outputDict, domain, selector)
+			add_to_dict(outputDict, domain, selector, date)
 
 
 def main():
