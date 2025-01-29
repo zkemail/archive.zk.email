@@ -1,7 +1,6 @@
 import { ReadonlyHeaders } from "next/dist/server/web/spec-extension/adapters/headers";
 import { RateLimiterMemory } from "rate-limiter-flexible";
 import { KeyType } from "@prisma/client";
-import crypto from "crypto";
 
 export type DomainAndSelector = {
 	domain: string,
@@ -17,8 +16,6 @@ export interface DnsDkimFetchResult {
 	keyDataBase64: string | null;
 }
 
-const pemHeader = "-----BEGIN PUBLIC KEY-----\n";
-const pemFooter = "\n-----END PUBLIC KEY-----";
 
 export function kValueToKeyType(s: string | null | undefined): KeyType {
 	if (s === null || s === undefined) {
@@ -32,11 +29,6 @@ export function kValueToKeyType(s: string | null | undefined): KeyType {
 		return 'Ed25519';
 	}
 	throw new Error(`Unknown key type: "${s}"`);
-}
-
-function isBase64(key: string): boolean {
-  const base64Regex = /^[A-Za-z0-9+/]+={0,2}$/;
-  return base64Regex.test(key);
 }
 
 // relaxed implementation of Tag=Value List, see https://datatracker.ietf.org/doc/html/rfc6376#section-3.2

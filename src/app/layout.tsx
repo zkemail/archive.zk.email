@@ -37,17 +37,18 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <body className={inter.className} style={{ margin: 0, overflowY: "scroll" }}>
           <header
             style={{
-              background: "#fcfdfe",
+              background: "#fcfdfe", 
               padding: "0.5rem",
               borderBottom: "1px solid #aaa",
               display: "flex",
+              alignItems: "center",
             }}
           >
-            <Link href="/" className="defaultcolor" style={{ display: "flex", fontWeight: 600 }} prefetch={false}>
+            <Link href="/" className="defaultcolor" style={{ display: "flex", alignItems: "center", fontWeight: 600 }} prefetch={false}>
               <img
                 src="/proof_of_email_logo_cropped.png"
                 alt="Proof of Email logotype"
-                style={{ width: "2.5rem", paddingRight: "0.5rem" }}
+                style={{ height: "1.6rem", paddingRight: "0.5rem" }}
               />
               DKIM Archive
             </Link>
