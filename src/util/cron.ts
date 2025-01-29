@@ -1,5 +1,6 @@
 import cron, { ScheduledTask } from "node-cron";
 import { updateJWKeySet } from "@/lib/db";
+import { generateJWKWitness } from "@/lib/generateWitness";
 
 let cronTask: ScheduledTask;
 let initialized = false;
@@ -11,9 +12,10 @@ export function startJWKCronJob() {
     return;
   }
 
-  cron.schedule("*/5 * * * *", () => {
+  cron.schedule("*/5 * * * *", async () => {
     console.log("Executing UpdateJWKCronJob...");
-    updateJWKeySet();
+    const updatedJwkSet = await updateJWKeySet();
+    if (updatedJwkSet) generateJWKWitness(updatedJwkSet);
   });
   initialized = true;
 }
