@@ -55,13 +55,19 @@ export default function Page() {
 		logmsg(`starting upload to ${addDspApiUrl}`);
 		for (let i = 0; i < domainSelectorPairs.length; i++) {
 			let dsp = domainSelectorPairs[i];
-			logmsg(`uploading (${i + 1}/${domainSelectorPairs.length}) ${JSON.stringify(dsp)}`);
+			let timestamp = ''
+			const selectorParts = dsp.selector?.split(':') || [];
+			if (selectorParts.length > 1) {
+				timestamp = selectorParts.slice(1).join(':')
+			}
+			dsp = { domain: dsp.domain, selector: dsp.selector.split(':')[0] };
+			logmsg(`uploading (${i + 1}/${domainSelectorPairs.length}) ${JSON.stringify({ ...dsp, timestamp })}`);
 			try {
 				let response = await axios.post<AddDspResponse>(addDspApiUrl, dsp as AddDspRequest);
 				await update();
 				console.log('upsert response', response);
 				if (response.data.addResult?.added) {
-					logmsg(`${JSON.stringify(dsp)} was added to the archive`);
+					logmsg(`${JSON.stringify({ ...dsp, timestamp })} was added to the archive`);
 					setAddedPairs(addedPairs => addedPairs + 1);
 				}
 			}

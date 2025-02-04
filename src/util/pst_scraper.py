@@ -25,13 +25,16 @@ dsps: set[str] = set()
 def parse_header(data: str):
 	h = email.parser.HeaderParser().parsestr(data)
 	dkim_fields = h.get_all('DKIM-Signature')
+	email_date = h.get('Date')
 	if not dkim_fields:
 		return
 	for dkim_field in dkim_fields:
 		dkimRecord = decode_dkim_tag_value_list(dkim_field)
 		domain = dkimRecord['d']
 		selector = dkimRecord['s']
-		dsps.add(f'{domain}\t{selector}')
+		formatted_date = email_date.strip()
+		descriptor = f"{selector}:{formatted_date}"
+		dsps.add(f'{domain}\t{descriptor}')
 
 
 def parse_message(msg):
