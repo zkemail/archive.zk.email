@@ -70,6 +70,7 @@ def resolve_qname(domain: str, selector: str):
 			return
 		tsv_row = f'DNS_BATCH_RESULT,{domain},{selector},{txtData}\n'  # extra newline at the end as a workaround for that the stdout from modal.com somtimes has merged lines if there is just one newline
 		print(tsv_row)
+		return txtData
 	except (dns.resolver.NXDOMAIN, dns.resolver.NoAnswer, dns.resolver.NoNameservers, dns.exception.Timeout) as _e:
 		#print(f'warning: dns resolver error: {e}')
 		pass
