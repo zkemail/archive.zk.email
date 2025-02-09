@@ -12,6 +12,25 @@ async function hexdigest(data: string, hashfn: string) {
 	}
 	throw new Error(`unsupported hashfn=${hashfn}`);
 }
+import { DkimVerifier } from 'dkimpy';
+
+async function generateHashFromHeaders2(signedHeaders: string, headerStrings: string[], headerCanonicalizationAlgorithm: string) {
+    // Convert headers to the format dkimpy expects
+    const headers = headerStrings.map(h => {
+        const [name, ...rest] = h.split(':');
+        return [name, rest.join(':').trim()];
+    });
+
+    // Create verifier with same settings as signing
+    const d = new DkimVerifier(headers);
+    
+    // Use dkimpy's internal hash_headers function which handles:
+    // - Proper header canonicalization
+    // - Correct header ordering
+    // - CRLF normalization
+    // - Whitespace handling
+    return d.hash_headers(signedHeaders, headerCanonicalizationAlgorithm);
+}
 
 async function generateHashFromHeaders(signedHeaders: string, headerStrings: string[], headerCanonicalizationAlgorithm: string) {
 	let signedHeadersArray = signedHeaders.split(':');
@@ -52,6 +71,10 @@ export async function storeEmailSignature(tags: Record<string, string>, headerSt
 
 
 	let headerHash = await generateHashFromHeaders(signedHeaders, headerStrings, headerCanonicalizationAlgorithm);
+	let headerHash2 = await generateHashFromHeaders2(signedHeaders, headerStrings, headerCanonicalizationAlgorithm);
+	if (headerHash !== headerHash2) {
+		console.log(`headerHash mismatch: ${headerHash} !== ${headerHash2}`);
+	}
 	let hashAndSignatureExists = await prisma.emailSignature.findFirst({ where: { headerHash, dkimSignature } });
 	if (hashAndSignatureExists) {
 		console.log(`skipping existing email signature, domain=${domain} selector=${selector}, timestamp=${timestamp}`);
