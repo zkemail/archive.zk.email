@@ -2,53 +2,95 @@ export default function Page() {
 
 	return (
 		<div>
-			<h1>Privacy Policy</h1>
+			<p className="h1" style={{ marginBottom: 4 }}>Privacy Policy for ZK Email</p>
 
-			<h2>Privacy policy for Proof of Email</h2>
-			<p>This privacy policy describes how DKIM Archive, operated by <strong>Proof of Email</strong> (hereinafter referred to as "we", "us", or "our"), accesses, uses, stores and shares your personal information when you use our website located at <a href="https://archive.prove.email">archive.prove.email</a> (the "website").</p>
-			<p><strong>Information we access:</strong></p>
-			<ul>
-				<li><strong>User email address:</strong> When you sign in with your Gmail account to contribute domains and selectors, we use your email address solely for displaying it to you within the platform.</li>
-				<li><strong>Email message:</strong> With your consent, we access your email message, specifically the header fields, to extract domains and selectors from the <code>DKIM-Signature</code> header field.</li>
-			</ul>
-			<p><strong>Information we store:</strong></p>
-			<ul>
-				<li><strong>Domain and selector from the DKIM-Signature header field:</strong> For each email message in your email account, we store the domain (<code>d=</code>) and the selector part (<code>s=</code>) of the <code>DKIM-Signature</code> field. The data is used to build our archive of DKIM keys.</li>
-			</ul>
-			<p><strong>Authentication:</strong></p>
-			<ul>
-				<li>
-					For the authentication with Google, OAuth 2.0 is used.
-					The OAuth tokens (access and refresh token) are stored in a JSON Web Token in the web browser.
-					The server does not store any tokens.
-				</li>
-			</ul>
-			<p><strong>How we use your information:</strong></p>
-			<ul>
-				<li><strong>Displaying your email address:</strong> We use your email address for displaying it within the platform when you use the "Upload from Gmail" feature.</li>
-				<li><strong>Build an archive of DKIM keys:</strong> We use the extracted domains and selectors from your email header fields to build a publicly accessible archive of historical DKIM keys.</li>
-				<li><strong>Build an archive of hashed emails and their corresponding DKIM signatures:</strong>We store the hash of the email content and the corresponding DKIM signature in a database.</li>
-			</ul>
-			<p><strong>Information sharing and disclosure:</strong></p>
-			<ul>
-				<li>We do not share your personal information with any third parties except as required by law or to protect our rights and interests.</li>
-				<li>The archived DKIM keys, containing domains and selectors (but not personal information), are publicly accessible on the website.</li>
-				<li>We may share anonymized or aggregated data with third parties for research or analytical purposes.</li>
-			</ul>
-			<p><strong>Data security:</strong></p>
-			<ul>
-				<li>We take reasonable steps to protect your personal information from unauthorized access, disclosure, alteration, or destruction. However, no internet transmission is completely secure, and we cannot guarantee the security of your information.</li>
-			</ul>
-			<p><strong>Your choices:</strong></p>
-			<ul>
-				<li>You can choose not to contribute domains and selectors by not using the "Upload from Gmail" feature.</li>
-				<li>You can revoke your consent for us to access your email message at any time by managing your Gmail app permissions.</li>
-				<li>You can request to delete your user account by contacting us.</li>
-			</ul>
-			<p><strong>Changes to this privacy policy:</strong></p>
-			<ul>
-				<li>We may update this privacy policy from time to time. We will notify you of any changes by posting the new privacy policy on the website.</li>
-			</ul>
-		</div >
+			<p className="body1">
+				Privacy Policy for ZK Email <br />
+				Effective Date: 10/4/2024 <br /> <br />
+				<br />
+				ZK Email ("we," "our," or "us") is committed to safeguarding your privacy and ensuring that your data remains secure and private when using our service. This Privacy Policy explains how we collect, use, and protect your information when you use ZK Email, a privacy-preserving system that allows you to selectively prove the sender, receiver, or contents of emails without exposing sensitive data. Note that this privacy policy is also found on our website at <a href="https://zk.email/privacy-policy">zk.email/privacy-policy</a>.<br />
+				<br />
+				1. Information We Collect <br />
+				ZK Email only processes the specific email data you choose to share for proof generation. This includes: <br />
+				<br />
+				Email Metadata: Sender, receiver, subject line, and timestamp of the email you are proving. <br />
+				Email Content: Only the specific parts of the email you choose to reveal (e.g., Twitter username, mention of a name, etc.). All other parts of the email remain private. <br />
+				OAuth Authentication: If integrating with third-party email providers (e.g., Gmail), ZK Email requests read access to your emails and metadata solely to generate proofs. The access scope is strictly limited to what&apos;s needed to perform these functions. <br />
+				<br />
+				2. How We Use Your Data <br />
+				ZK Email uses your data exclusively for proof generation. Here&apos;s how: <br />
+				<br />
+				Proof Creation: We enable you to prove the contents of an email while concealing the parts you don&apos;t want to disclose. <br />
+				Temporary Data Processing: If you choose to generate proofs server-side, raw email data is temporarily stored for the duration of proof generation and deleted immediately afterward. <br />
+				Client-Side Privacy: When generating proofs client-side, no email data is stored on our servers. All proof generation happens locally on your device. <br />
+				<br />
+				3. Data Storage and Retention <br />
+				Client-Side Processing: ZK Email does not store any data on our servers during client-side proof generation. All email data remains on your device, ensuring full privacy. <br />
+				Server-Side Processing: If server-side proof generation is required, raw email data is temporarily processed and stored until the proof is generated. After the proof is created, the raw data is immediately deleted. The resulting proof may be stored on-chain or off-chain, depending on your requirements. <br />
+				Analytics: We use privacy-preserving analytics via tinfoil.sh, an MPC (Multi-Party Computation) based system that performs analytics without storing any individual session data. As a result, ZK Email does not require cookie banners or any invasive tracking. <br />
+				<br />
+				4. Third-Party Access <br />
+				ZK Email does not sell or rent your data under any circumstance. We share your email data with third parties in the following circumstances: <br />
+				<br />
+				Proof Verification: If the proof needs to be pushed on-chain (e.g., to verify email ownership or content), the disclosed data will be available on the blockchain, where it will remain immutable. <br />
+				Service Providers: We may work with trusted partners (e.g., cloud infrastructure providers) to facilitate server-side proof generation. These partners are contractually obligated to comply with our privacy policies. <br />
+				<br />
+				4.1 DKIM Archive Service <br />
+				The DKIM Archive (archive.prove.email) is a specific service within ZK Email that requires additional privacy considerations: <br />
+				<br />
+				Information Access and Storage: <br />
+				- User Email Address: When signing in with Gmail, we only use your email address for display purposes within the platform. <br />
+				- Email Headers: With explicit consent, we access email headers to extract DKIM-Signature fields, specifically domains (d=) and selectors (s=). <br />
+				- DKIM Keys Archive: We maintain a public archive of historical DKIM keys built from contributed domains and selectors. <br />
+				- Email Hashes: We store cryptographic hashes of email content and corresponding DKIM signatures in our database. Note that these do not contain PII and are not linked to users in any way. <br />
+				<br />
+				Authentication and Security: <br />
+				- We use OAuth 2.0 for Google authentication. <br />
+				- OAuth tokens are stored only in the browser as JSON Web Tokens. <br />
+				- Our servers do not retain authentication tokens. <br />
+				<br />
+				User Control: <br />
+				- The &ldquo;Upload from Gmail&rdquo; feature is optional and requires explicit consent. <br />
+				- Users can revoke Gmail access permissions at any time. <br />
+				- Account deletion requests can be submitted to our support team. <br />
+				<br />
+				Public Information: <br />
+				- The DKIM key archive, containing domains and selectors, is publicly accessible. <br />
+				- No personal information is included in the public archive. <br />
+				<br />
+				5. Security Measures <br />
+				We employ robust security measures to protect your data: <br />
+				<br />
+				Zero-Knowledge Proofs: Our system uses advanced cryptography to ensure that only the email content you explicitly reveal is exposed. Everything else remains private. <br />
+				Encryption: All data transmissions are encrypted, ensuring that any email data being transferred is secured. <br />
+				Client-Side Proving: For maximum privacy, ZK Email allows users to generate proofs entirely on their own device, meaning no data is shared with ZK Email servers unless explicitly consented to. <br />
+				<br />
+				6. Consent and Control <br />
+				You have full control over the data ZK Email processes: <br />
+				<br />
+				OAuth Authorization: If you connect an email provider (e.g., Gmail) to ZK Email, we request explicit permission to access only the emails required to create proofs. <br />
+				Proof Generation Consent: You must manually consent to temporary storage of email data if server-side processing is necessary. This is clearly indicated in the user interface (UI). <br />
+				Blockchain Consent: If you choose to push proofs on-chain, ZK Email will prompt for your explicit consent before publishing any email-related data on a blockchain. <br />
+				<br />
+				7. Your Rights <br />
+				You have the right to: <br />
+				<br />
+				Withdraw Access: You can revoke access to your email account at any time through the OAuth settings of your email provider. <br />
+				Data Deletion: ZK Email will delete any temporary raw email data once the proof generation process is complete. We store no personal data unless it is explicitly included in a proof you chose to push to the blockchain. <br />
+				Transparency: You can request information on any data ZK Email has processed or stored for proof generation. <br />
+				<br />
+				8. Changes to This Policy <br />
+				We may update this Privacy Policy from time to time. When changes are made, we will notify users by posting the revised policy on our website, and changes will take effect immediately. <br />
+				<br />
+				9. Contact Us <br />
+				For any questions or concerns regarding your privacy, feel free to reach out to us at: <br />
+				<br />
+				Email: admin@prove.email <br />
+				Company: Ivy Research, LLC <br />
+				<br />
+				This Privacy Policy is designed to comply with privacy standards, including Google&apos;s OAuth requirements, ensuring that ZK Email accesses only the necessary data for its privacy-preserving features without retaining or exposing sensitive information.
+				<br />
+			</p>
+		</div>
 	)
 }
