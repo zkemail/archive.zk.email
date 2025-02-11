@@ -20,6 +20,8 @@ model DomainSelectorPair {
   lastRecordUpdate DateTime?
   records          DkimRecord[]
   sourceIdentifier String
+
+  @@index([domain])
 }
 
 enum KeyType {

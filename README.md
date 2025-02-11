@@ -1,4 +1,4 @@
-This repository is part of the [Proof of Email](https://prove.email/) project
+This repository is part of the [Proof of Email](https://prove.email/) project -- read more at [prove.email/blog/archive](https://prove.email/blog/archive)!
 
 # DKIM archive website
 
@@ -72,3 +72,43 @@ python3 src/util/pst_scraper.py inbox.pst > domains_and_selectors.tsv
 The output file, (`domains_and_selectors.tsv` in the examples above), is a [TSV](https://en.wikipedia.org/wiki/Tab-separated_values) file with two columns: domain and selector.
 
 You can now use the .tsv file to contribute to the archive on the [Upload from TSV file](https://archive.prove.email/upload_tsv) page.
+
+# DB Migration Guide
+
+## Modifying the Prisma Database Schema
+
+When you modify the `schema.prisma` file, you need to create and include a migration file. This file contains the SQL commands necessary to update the database structure.
+
+### Creating a Migration File
+
+To create a migration file:
+
+1. Run the following command:
+   ```
+   pnpm prisma migrate dev --name <migration_name> --create-only
+   ```
+   Replace `<migration_name>` with a descriptive name for your migration (e.g., `add_index_to_dsp`).
+
+2. Prisma will detect changes in `schema.prisma` and create a migration file that applies these changes to the database.
+
+3. The new migration file will be added to the `prisma/migrations` directory.
+
+### Testing Migrations Locally
+
+To test the migration on a local database:
+
+1. Ensure you are connected to a local database clone.
+2. Run the command without the `--create-only` flag:
+   ```
+   pnpm prisma migrate dev --name <migration_name>
+   ```
+   This will create the migration file AND apply the changes to your connected database.
+
+### Including Migrations in Pull Requests
+
+Always include the new migration file in your pull request. This ensures that the database is updated correctly during deployment.
+
+### Existing Migrations
+
+You can find previous migration files in the GitHub repository:
+[https://github.com/zkemail/archive.prove.email/tree/main/prisma/migrations](https://github.com/zkemail/archive.prove.email/tree/main/prisma/migrations)

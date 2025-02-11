@@ -2,6 +2,7 @@
 
 import { InlineCode } from "@/components/InlineCode";
 import { cardStyle } from "@/components/styles";
+import { signIn } from "next-auth/react";
 import React from "react";
 
 export default function Page() {
@@ -19,7 +20,7 @@ export default function Page() {
 			<h2>Ways to contribute to the archive:</h2>
 
 			<h3>Upload from Gmail</h3>
-			<p>To upload directly from your Gmail account, visit the <strong><a href="upload_gmail">Upload from Gmail</a></strong> page.</p>
+			<p>To upload directly from your Gmail account, visit the <strong><a onClick={() => signIn("google")}>Upload from Gmail</a></strong> page.</p>
 			<p>
 				When you sign in with your Gmail account and press Start, the site will
 				extract the <InlineCode>DKIM-Signature</InlineCode> field from each email message in your Gmail account.

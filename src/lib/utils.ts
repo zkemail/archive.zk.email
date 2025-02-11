@@ -43,7 +43,10 @@ export function parseDkimTagList(dkimValue: string): Record<string, string> {
 		const key = part.slice(0, i).trim();
 		const value = part.slice(i + 1).trim();
 		if (result.hasOwnProperty(key)) {
-			// duplicate key, keep the first one
+			// duplicate key, keep the longer value
+			if (value.length > result[key].length) {
+				result[key] = value;
+			}
 			continue;
 		}
 		result[key] = value;

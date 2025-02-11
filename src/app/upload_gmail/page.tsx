@@ -1,12 +1,13 @@
 "use client";
 
-import React, { useEffect } from "react";
+import React, { useEffect, useRef } from "react";
 import { useSession, signIn, signOut } from "next-auth/react"
 import { LogConsole, LogRecord } from "@/components/LogConsole";
 import { axiosErrorMessage, truncate } from "@/lib/utils";
 import axios from "axios";
 import { GmailResponse } from "../api/gmail/route";
 import { actionButtonStyle } from "@/components/styles";
+import googleButtonStyles from "./page.module.css";
 
 export default function Page() {
 
@@ -17,20 +18,26 @@ export default function Page() {
 	const [uploadedPairs, setUploadedPairs] = React.useState<Set<string>>(new Set());
 	const [addedPairs, setAddedPairs] = React.useState<number>(0);
 	const [nextPageToken, setNextPageToken] = React.useState<string>('');
+	const [gmailQuery, setGmailQuery] = React.useState<string>('');
 	const [processedMessages, setProcessedMessages] = React.useState<number>(0);
 	const [totalMessages, setTotalMessages] = React.useState<number | null>(null);
+	const [startDate, setStartDate] = React.useState<string>('');
+	const [endDate, setEndDate] = React.useState<string>('');
+	const [domain, setDomain] = React.useState<string>('');
 
 	type ProgressState = 'Not started' | 'Running...' | 'Paused' | 'Interrupted' | 'Completed';
 	const [progressState, setProgressState] = React.useState<ProgressState>('Not started');
+
+	const domainInputRef = useRef<HTMLInputElement>(null);
 
 	useEffect(() => {
 		if (progressState === 'Paused') {
 			logmsg(progressState);
 		}
 		if (progressState === 'Running...') {
-			uploadFromGmail();
+			uploadFromGmail(gmailQuery);
 		}
-	}, [nextPageToken]);
+	}, [nextPageToken, gmailQuery]);
 
 	if (status === "loading" && !session) {
 		return <p>loading...</p>
@@ -51,7 +58,28 @@ export default function Page() {
 				The email access tokens are only stored on the user's browser. The server does not store any tokens.
 				For more information, see the <a href="/privacy-policy">privacy policy</a>.
 			</p>
-			<button style={actionButtonStyle} onClick={() => signIn()}>Sign in</button>
+			<button onClick={() => signIn("google")} className={googleButtonStyles.googleSignInButton}>
+        <svg className={googleButtonStyles.googleIcon} viewBox="0 0 24 24">
+          <path
+            fill="#4285F4"
+            d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
+          />
+          <path
+            fill="#34A853"
+            d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
+          />
+          <path
+            fill="#FBBC05"
+            d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"
+          />
+          <path
+            fill="#EA4335"
+            d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
+          />
+          <path fill="none" d="M1 1h22v22H1z" />
+        </svg>
+        Sign in with Google
+      </button>
 		</div>
 	}
 
@@ -62,12 +90,12 @@ export default function Page() {
 				Insufficient permissions
 			</h3>
 			<p>
-				To use this feature, you need to grant permission for the site to access email message metadata.
+				To use this feature, you need to grant permission for the site to access email message.
 				To do this, <b><a href="#" onClick={() => signOut()}>sign out</a></b> and sign in again,
-				and during the sign-in process, give permission to access email message metadata:
+				and during the sign-in process, give permission to access email message:
 			</p>
 			<p>
-				<img src="/grant_metadata_scope.png" alt="instruction to grant metadata scope" />
+				<img src="/grant_metadata_scope.png" alt="instruction to grant scope" />
 			</p>
 		</div>
 	}
@@ -82,8 +110,7 @@ export default function Page() {
 			return <NotSignedIn />
 		}
 
-		// check for strict equality to avoid showing a misleading message to the user when the value is unknown (undefined), but the user has in fact granted the scope access
-		if (session.has_metadata_scope === false) {
+		if (session.has_gmail_scope === false) {
 			return <InsufficientPermissions />
 		}
 
@@ -96,18 +123,52 @@ export default function Page() {
 			<div style={{ fontWeight: 500 }}>
 				Progress: {progressState}
 			</div>
+			<div style={{ display: 'flex', flexDirection: 'column' }}>
+				<div style={{ fontStyle: 'italic', color: '#555' }}>The folowing fields are optional:</div>
+				<label>
+					Start Date:
+					<input
+						type="date"
+						value={startDate}
+						onChange={(e) => setStartDate(formatDate(e.target.value) ?? '')}
+						placeholder="Start Date"
+						style={{ marginLeft: '0.5rem' }}
+					/>
+				</label>
+				<label>
+					End Date:
+					<input
+						type="date"
+						value={endDate}
+						onChange={(e) => setEndDate(formatDate(e.target.value) ?? '')}
+						placeholder="End Date"
+						style={{ marginLeft: '0.5rem' }}
+					/>
+				</label>
+				<label>
+					Domain:
+					<input
+						type="text"
+						ref={domainInputRef}
+						defaultValue={domain}
+						onBlur={handleDomainChange}
+						placeholder="Domain"
+						style={{ marginLeft: '0.5rem' }}
+					/>
+				</label>
+			</div>
 			<div>
 				{showStartButton && <button style={actionButtonStyle} onClick={() => {
-					uploadFromGmail();
+					constructGmailQuery(startDate, endDate, domain);
+					uploadFromGmail(gmailQuery);
 				}}>Start</button>}
 				{showResumeButton && <button style={actionButtonStyle} onClick={() => {
-					uploadFromGmail();
+					uploadFromGmail(gmailQuery);
 				}}>Resume</button>}
 				{showPauseButton && <button style={actionButtonStyle} onClick={() => {
 					logmsg('pausing upload...');
 					setProgressState('Paused');
 				}}>Pause</button>}
-
 			</div>
 			{showProgress && <>
 				<div style={{ marginTop: '1rem', marginBottom: '1rem' }}>
@@ -132,11 +193,43 @@ export default function Page() {
 		setLog(log => [...log, { message, date: new Date() }]);
 	}
 
-	async function uploadFromGmail() {
+	function formatDate(dateString: string): string | null {
+		if (!dateString) return null;
+		const date = new Date(dateString);
+		if (isNaN(date.getTime())) return null; // Invalid date
+		const year = date.getFullYear();
+		const month = String(date.getMonth() + 1).padStart(2, '0'); // Months are 0-based
+		const day = String(date.getDate()).padStart(2, '0');
+		return `${year}/${month}/${day}`;
+	}
+
+	function constructGmailQuery(startDate?: string, endDate?: string, domain?: string) {
+		console.log('constructGmailQuery', startDate, endDate, domain);
+		let queryParts: string[] = [];
+	
+		if (startDate) {
+			queryParts.push(`after:${startDate}`);
+		}
+	
+		if (endDate) {
+			queryParts.push(`before:${endDate}`);
+		}
+	
+		if (domain) {
+			queryParts.push(`from:${domain}`);
+		}
+	
+		setGmailQuery(queryParts.join(" "));
+	}
+
+	async function uploadFromGmail(currentGmailQuery: string) {
 		setProgressState('Running...');
 		try {
 			logmsg(`fetching page ${nextPageToken}`);
-			let response = await axios.get<GmailResponse>(gmailApiUrl, { params: { pageToken: nextPageToken }, timeout: 20000 });
+			let params: any = { pageToken: nextPageToken, timeout: 20000, gmailQuery: currentGmailQuery };
+
+			let response = await axios.get<GmailResponse>(gmailApiUrl, { params });
+			
 			await update();
 			if (response.data.messagesTotal) {
 				setTotalMessages(response.data.messagesTotal);
@@ -144,8 +237,9 @@ export default function Page() {
 			for (const addDspResult of response.data.addDspResults) {
 				const pair = addDspResult.domainSelectorPair;
 				const pairString = JSON.stringify(pair);
+				const timestamp = addDspResult.mailTimestamp;
 				if (!uploadedPairs.has(pairString)) {
-					logmsg('new pair found: ' + JSON.stringify(pair));
+					logmsg('new pair found: ' + JSON.stringify({ ...pair, timestamp }));
 					if (addDspResult.addResult.added) {
 						logmsg(`${pairString} was added to the archive`);
 						setAddedPairs(addedPairs => addedPairs + 1);
@@ -169,6 +263,12 @@ export default function Page() {
 			console.log(message);
 			logmsg(`error: ${truncate(message, 150)}`);
 			setProgressState('Interrupted');
+		}
+	}
+
+	function handleDomainChange() {
+		if (domainInputRef.current) {
+			setDomain(domainInputRef.current.value);
 		}
 	}
 

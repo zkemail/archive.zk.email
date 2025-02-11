@@ -41,6 +41,11 @@ export async function findRecords(domainQuery: string): Promise<RecordWithSelect
 						}
 					}
 				]
+			},
+			value: {
+				not: {
+					equals: "p="
+				}
 			}
 		},
 		include: {
