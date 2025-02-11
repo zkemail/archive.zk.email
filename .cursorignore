@@ -1,1 +1,8 @@
+# Add directories or file patterns to ignore during indexing (e.g. foo/ or *.csv)
 emails/
+.next/
+node_modules/
+.git/
+.gitignore
+.cursorignore
+.cursorrules
