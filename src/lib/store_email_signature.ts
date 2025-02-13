@@ -16,6 +16,7 @@ async function hexdigest(data: string, hashfn: string) {
 async function generateHashFromHeaders(signedHeaders: string, headerStrings: string[], headerCanonicalizationAlgorithm: string) {
 	let signedHeadersArray = signedHeaders.split(':');
 	let signedData = processHeader(headerStrings, signedHeadersArray, headerCanonicalizationAlgorithm);
+	console.log(`signedHeaderData=${signedData}`);
 	let headerHash = await hexdigest(signedData, 'sha256');
 	return headerHash;
 }
@@ -53,7 +54,7 @@ export async function storeEmailSignature(tags: Record<string, string>, headerSt
 		// Generate header hash using our existing function
 		let headerHash = await generateHashFromHeaders(signedHeaders, headerStrings, headerCanonicalizationAlgorithm);
 		
-		// Check if RSA passes now
+		// Check if RSA passes now, if it does then don't commit the signature to the DB
 		// TODO: not implemented
 
 		let hashAndSignatureExists = await prisma.emailSignature.findFirst({ 
