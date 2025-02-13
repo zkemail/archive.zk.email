@@ -1,6 +1,7 @@
 import { processHeader } from "dkim";
 import { prisma } from '@/lib/db';
 import { verifyDKIMSignature } from "@zk-email/helpers/dist/dkim";
+import { mimeWordsDecode } from 'emailjs-mime-codec';
 
 async function hexdigest(data: string, hashfn: string) {
 	const crypto = require('crypto');
@@ -19,6 +20,26 @@ async function generateHashFromHeaders(signedHeaders: string, headerStrings: str
 	console.log(`signedHeaderData=${signedData}`);
 	let headerHash = await hexdigest(signedData, 'sha256');
 	return headerHash;
+}
+
+function isMIMEEncoded(str: string): boolean {
+	return /=\?[^?]+\?[QBqb]\?[^?]*\?=/.test(str);
+}
+
+function normalizeHeader(header: string): string {
+	const [name, ...parts] = header.split(':');
+	const value = parts.join(':').trim();
+	
+	// Only decode if it's MIME encoded
+	if (isMIMEEncoded(value)) {
+		try {
+			return `${name}: ${mimeWordsDecode(value)}`;
+		} catch (e) {
+			console.warn('Failed to decode MIME header:', e);
+			return header; // Return original if decode fails
+		}
+	}
+	return header; // Return as-is if not MIME encoded
 }
 
 export async function storeEmailSignature(tags: Record<string, string>, headerStrings: string[], domain: string, selector: string, timestamp: Date | null) {
@@ -46,13 +67,16 @@ export async function storeEmailSignature(tags: Record<string, string>, headerSt
 	// c is optional, where the default is "simple/simple"
 	let headerCanonicalizationAlgorithm = tags.c ? tags.c.split('/')[0] : 'simple';
 
+	// Normalize headers while preserving non-MIME ones
+	const normalizedHeaders = headerStrings.map(normalizeHeader);
+
 	try {
 		// Verify DKIM signature using zk-email helpers
-		const emailData = headerStrings.join('\r\n');
-		const verificationResult = await verifyDKIMSignature(emailData);
+		const fullHeader = normalizedHeaders.join('\r\n');
+		console.log(`fullHeader=${fullHeader}`);
 		
 		// Generate header hash using our existing function
-		let headerHash = await generateHashFromHeaders(signedHeaders, headerStrings, headerCanonicalizationAlgorithm);
+		let headerHash = await generateHashFromHeaders(signedHeaders, normalizedHeaders, headerCanonicalizationAlgorithm);
 		
 		// Check if RSA passes now, if it does then don't commit the signature to the DB
 		// TODO: not implemented

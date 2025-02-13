@@ -293,7 +293,7 @@ async def main():
 	
 	prisma = Prisma()
 	await prisma.connect()
-	domain_filter = os.environ.get('DOMAIN_FILTER') if os.environ.get('DOMAIN_FILTER') else "binance.com"
+	domain_filter = os.environ.get('DOMAIN_FILTER') if os.environ.get('DOMAIN_FILTER') else "coinbase.com"
 	if domain_filter:
 		email_signatures = await prisma.emailsignature.find_many(where={'domain': domain_filter})
 		logging.info(f"Filtering signatures for domain: {domain_filter}")
