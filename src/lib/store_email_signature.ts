@@ -53,6 +53,9 @@ export async function storeEmailSignature(tags: Record<string, string>, headerSt
 		// Generate header hash using our existing function
 		let headerHash = await generateHashFromHeaders(signedHeaders, headerStrings, headerCanonicalizationAlgorithm);
 		
+		// Check if RSA passes now
+		// TODO: not implemented
+
 		let hashAndSignatureExists = await prisma.emailSignature.findFirst({ 
 			where: { headerHash, dkimSignature } 
 		});
