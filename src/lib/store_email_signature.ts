@@ -20,12 +20,19 @@ async function generateHashFromHeaders(signedHeaders: string, headerStrings: str
 	return headerHash;
 }
 
-export async function storeEmailSignature(tags: Record<string, string>, headerStrings: string[], domain: string, selector: string, timestamp: Date | null) {
-	let signingAlgorithm = tags.a?.toLowerCase() || 'rsa-sha256';
-	if (signingAlgorithm !== 'rsa-sha256') {
-		console.log(`warning: unsupported signing algorithm: ${signingAlgorithm}`);
-		return;
-	}
+export async function storeEmailSignature(
+  tags: Record<string, string>,
+  headerStrings: string[],
+  email: string,
+  domain: string,
+  selector: string,
+  timestamp: Date | null
+) {
+  const signingAlgorithm = tags.a?.toLowerCase() || "rsa-sha256";
+  if (signingAlgorithm !== "rsa-sha256") {
+    console.log(`warning: unsupported signing algorithm: ${signingAlgorithm}`);
+    return;
+  }
 
 	let signedHeaders = tags.h;
 	if (!signedHeaders) {
@@ -47,8 +54,7 @@ export async function storeEmailSignature(tags: Record<string, string>, headerSt
 
 	try {
 		// Verify DKIM signature using zk-email helpers
-		const emailData = headerStrings.join('\r\n');
-		const verificationResult = await verifyDKIMSignature(emailData);
+		const verificationResult = await verifyDKIMSignature(email);
 		
 		// Generate header hash using our existing function
 		let headerHash = await generateHashFromHeaders(signedHeaders, headerStrings, headerCanonicalizationAlgorithm);
