@@ -12,7 +12,7 @@ export type DomainSearchResults = {
   value: string;
 };
 
-const rateLimiter = new RateLimiterMemory({ points: 100, duration: 1 });
+const rateLimiter = new RateLimiterMemory({ points: 1000, duration: 1 });
 
 export async function GET(request: NextRequest) {
   try {

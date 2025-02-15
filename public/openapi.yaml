@@ -19,7 +19,7 @@ paths:
       summary: List DKIM keys
       description: >
         Returns a list of DKIM keys for a given domain and its subdomains.
-        The endpoint is rate limited to 100 requests per second.
+        The endpoint is rate limited to 1000 requests per second.
       operationId: listKeys
       parameters:
         - name: domain
