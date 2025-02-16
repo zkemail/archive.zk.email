@@ -2,21 +2,46 @@
 
 import DomainSearchResults from "@/components/DomainSearchResults";
 import { SearchInput } from "@/components/SearchInput";
+import { JWKArchiveDisplayList } from "@/components/JWKArchiveDisplay";
 import Link from "next/link";
 import { useState } from "react";
 
 export default function Home({ searchParams }: { searchParams: { [key: string]: string | string[] | undefined } }) {
   const domainQuery = searchParams?.domain?.toString();
   const [isLoading, setIsLoading] = useState(true);
+  const [selectedArchive, setSelectedArchive] = useState<'dkim' | 'jwk'>('dkim');
+
+  const handleArchiveChange = (event: React.ChangeEvent<HTMLSelectElement>) => {
+    setSelectedArchive(event.target.value as 'dkim' | 'jwk');
+  };
+
   return (
     <div style={{ display: "flex", minHeight: "100vh", flexDirection: "column", alignItems: "center" }}>
-      <h2 style={{ padding: "2rem" }}>
-        <Link href="/" className="defaultcolor" prefetch={false}>
-          DKIM Archive
-        </Link>
-      </h2>
-      <SearchInput domainQuery={domainQuery} setIsLoading={setIsLoading} />
-      <DomainSearchResults domainQuery={domainQuery} isLoading={isLoading} setIsLoading={setIsLoading} />
+      
+
+      <div style={{ paddingTop: "8rem", paddingBottom: "2rem" }}>
+        <select
+          id="archive-select"
+          value={selectedArchive}
+          onChange={handleArchiveChange}
+          style={{ padding: "0.5rem", fontSize: "1rem" }}
+        >
+          <option value="dkim">DKIM Archive</option>
+          <option value="jwk">Google JWKs Archive</option>
+        </select>
+      </div>
+
+      {selectedArchive === 'dkim' ? (
+        <>
+          <SearchInput domainQuery={domainQuery} setIsLoading={setIsLoading} />
+          <DomainSearchResults domainQuery={domainQuery} isLoading={isLoading} setIsLoading={setIsLoading} />
+        </>
+      ) : (
+        <>
+          <JWKArchiveDisplayList />
+        </>
+      )}
+
       <div style={{ textAlign: "center", marginTop: "5rem", fontSize: "0.8rem" }}>
         <hr style={{ width: "50%", margin: "1rem auto", borderTop: "1px solid black" }} />
         <div>
