@@ -1,0 +1,4 @@
+prisma
+gmpy2
+pycryptodome
+tqdm

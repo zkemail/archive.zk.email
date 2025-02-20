@@ -124,7 +124,7 @@ export default function Page() {
 				Progress: {progressState}
 			</div>
 			<div style={{ display: 'flex', flexDirection: 'column' }}>
-				<div style={{ fontStyle: 'italic', color: '#555' }}>The folowing fields are optional:</div>
+				<div style={{ fontStyle: 'italic', color: '#555' }}>The following fields are optional:</div>
 				<label>
 					Start Date:
 					<input
