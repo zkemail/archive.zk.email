@@ -54,34 +54,32 @@ export async function storeEmailSignature(
 
 	try {
 		// Verify DKIM signature using zk-email helpers
-		const verificationResult = await verifyDKIMSignature(email);
-		
-		// Generate header hash using our existing function
-		let headerHash = await generateHashFromHeaders(signedHeaders, headerStrings, headerCanonicalizationAlgorithm);
-		
-		let hashAndSignatureExists = await prisma.emailSignature.findFirst({ 
-			where: { headerHash, dkimSignature } 
-		});
-		
-		if (hashAndSignatureExists) {
-			console.log(`skipping existing email signature, domain=${domain} selector=${selector}, timestamp=${timestamp}`);
-			return;
-		}
-
-		console.log(`storing email dkim signature, domain=${domain} selector=${selector}, timestamp=${timestamp}`);
-		await prisma.emailSignature.create({
-			data: {
-				domain, 
-				selector, 
-				headerHash, 
-				dkimSignature, 
-				timestamp, 
-				signingAlgorithm,
-				canonInfo: '@zk-email/helpers@6.3.3'
-			}
-		});
+		const verificationResult = await verifyDKIMSignature(email, "", true, false, true);
 	} catch (error) {
 		console.error('Error verifying DKIM signature:', error);
+	}
+	// Generate header hash using our existing function
+	let headerHash = await generateHashFromHeaders(signedHeaders, headerStrings, headerCanonicalizationAlgorithm);
+	
+	let hashAndSignatureExists = await prisma.emailSignature.findFirst({ 
+		where: { headerHash, dkimSignature } 
+	});
+	
+	if (hashAndSignatureExists) {
+		console.log(`skipping existing email signature, domain=${domain} selector=${selector}, timestamp=${timestamp}`);
 		return;
 	}
+
+	console.log(`storing email dkim signature, domain=${domain} selector=${selector}, timestamp=${timestamp}`);
+	await prisma.emailSignature.create({
+		data: {
+			domain, 
+			selector, 
+			headerHash, 
+			dkimSignature, 
+			timestamp, 
+			signingAlgorithm,
+			canonInfo: '@zk-email/helpers@6.3.3'
+		}
+	});
 }

@@ -24,8 +24,8 @@ importers:
         specifier: ^0.4.2
         version: 0.4.3(viem@2.21.0(typescript@5.5.4)(zod@3.23.8))
       '@zk-email/helpers':
-        specifier: ^6.3.3
-        version: 6.3.3
+        specifier: ^6.4.2
+        version: 6.4.2
       axios:
         specifier: ^1.7.2
         version: 1.7.6
@@ -1113,8 +1113,8 @@ packages:
     peerDependencies:
       viem: ^2.9.25
 
-  '@zk-email/helpers@6.3.3':
-    resolution: {integrity: sha512-rT8IIoP2vDw1soCsxhSCvnFbGaScHIuqapHdpFMUlAY8RPwH4IWlvmcfQqsC1sMMx6hIubNWBg+5HThl/RIHAw==}
+  '@zk-email/helpers@6.4.2':
+    resolution: {integrity: sha512-0S49A5cezcnCR98qAw/zJfjr8l/uFy20BcPxS8ADXNA9RVp4cUB2EQ4imRqnAg8ZoM+C/D+si1h/9KkW9qrJyw==}
 
   abitype@1.0.5:
     resolution: {integrity: sha512-YzDhti7cjlfaBhHutMaboYB21Ha3rXR9QTkNJFzYC4kC8YclaiwPBBBJY8ejFdu2wnJeZCVZSMlQJ7fi8S6hsw==}
@@ -4396,7 +4396,7 @@ snapshots:
       - encoding
       - supports-color
 
-  '@zk-email/helpers@6.3.3':
+  '@zk-email/helpers@6.4.2':
     dependencies:
       addressparser: 1.0.1
       atob: 2.1.2
