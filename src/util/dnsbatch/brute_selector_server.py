@@ -171,8 +171,8 @@ class DKIMResolver:
         unique_selectors = list(set(selector for selector in selector_list if selector))
         
         if verbose:
-            print(f"Using {self.PROCESS_COUNT} processes")
-            print(f"Found {len(unique_selectors)} unique selectors to check")
+            # print(f"Using {self.PROCESS_COUNT} processes")
+            # print(f"Found {len(unique_selectors)} unique selectors to check")
             
         blocks = []
         for i in range(0, len(unique_selectors), self.BLOCK_SIZE):
@@ -188,7 +188,7 @@ class DKIMResolver:
             }, room=self.session_id)
             
         if verbose:
-            print(f"Split into {len(blocks)} blocks")
+            # print(f"Split into {len(blocks)} blocks")
             
         block_args = [(block, idx, domain) for idx, block in enumerate(blocks)]
         valid_selectors = []
@@ -240,7 +240,7 @@ def brute_domain():
         verbose=False,
         http=True,
     )
-    print(results)
+    # print(results)
     json_result = jsonpickle.encode(results)
     return json_result, 200
 
@@ -274,7 +274,7 @@ def handle_brute_domain_ws(data):
         emit('error', {'message': 'Invalid session'}, room=session_id)
         return
         
-    print(f"Received domain via WebSocket for session {session_id}: {domain}")
+    # print(f"Received domain via WebSocket for session {session_id}: {domain}")
     
     def process_domain():
         try:

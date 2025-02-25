@@ -60,13 +60,13 @@ function DomainSearchResults({ domainQuery, isLoading, setIsLoading }: DomainSea
       setFlag("stop");
       setIsLoading(false);
       setFetchMessage("Failed to fetch from archive. Brute Forcing the domain against common selectors ...");
-      // console.log("Length of filtered records = 0");
       
       const bruteServerUrl = process.env.BRUTE_SELECTOR_SERVER_URL;
       if (bruteServerUrl) {
         const socket = io(bruteServerUrl);
         setSocket(socket);
         socket.on("connect", () => {
+          // console.log("connected to webscoket")
           socket.emit("bruteDomain", { domain: domainQuery });
         });
 
@@ -80,7 +80,6 @@ function DomainSearchResults({ domainQuery, isLoading, setIsLoading }: DomainSea
               lastRecordUpdate: new Date(),
               sourceIdentifier: 'brute-forced',
             };
-            
             const newRecord: RecordWithSelector = {
               id: uniqueId,
               domainSelectorPairId: uniqueId,
@@ -97,7 +96,6 @@ function DomainSearchResults({ domainQuery, isLoading, setIsLoading }: DomainSea
             setRecords((prevRecords) => {
               const updatedRecords = new Map(prevRecords);
               updatedRecords.set(uniqueId, newRecord);
-              // console.log(updatedRecords)
               return updatedRecords;
             });
             
@@ -120,12 +118,12 @@ function DomainSearchResults({ domainQuery, isLoading, setIsLoading }: DomainSea
 
           fetch(`${bruteServerUrl}/bruteDomain?domain=${domainQuery}`)
             .then((response) => response.json())
-            .then((data: RecordWithSelector[]) => {
+            .then((data: any) => {
               
               setRecords((prevRecords) => {
                 const newRecordsMap = new Map(prevRecords);
                 
-                data.forEach((record) => {
+                data.forEach((record: { domain: string; selector: string; value: string }) => {
                   if (record.value) {
                     const uniqueId = nextBruteForceIdRef.current++;
                     
@@ -161,7 +159,6 @@ function DomainSearchResults({ domainQuery, isLoading, setIsLoading }: DomainSea
               setFetchMessage(null);
             })
             .catch((err) => {
-              console.error("Fallback GET request failed:", err);
               setFetchMessage("Brute-force attempt failed. No results found.");
             });
         });
