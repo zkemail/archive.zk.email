@@ -118,7 +118,7 @@ export function truncate(s: string, maxLength: number) {
 	}
 }
 
-export const DspSourceIdentifiers = ['top_1m_lookup', 'api', 'selector_guesser', 'seed', 'try_selectors', 'api_auto', 'scraper', 'public_key_gcd_batch', 'unknown'] as const;
+export const DspSourceIdentifiers = ['top_1m_lookup', 'api', 'selector_guesser', 'seed', 'try_selectors', 'api_auto', 'scraper', 'public_key_gcd_batch', 'brute-forced', 'unknown'] as const;
 export type DspSourceIdentifier = typeof DspSourceIdentifiers[number];
 
 export function stringToDspSourceIdentifier(s: string): DspSourceIdentifier {
@@ -158,6 +158,8 @@ export function dspSourceIdentifierToHumanReadable(sourceIdentifierStr: string) 
 			return 'Try selectors';
 		case 'public_key_gcd_batch':
 			return 'Mail archive';
+		case 'brute-forced':
+			return 'Brute Forced';
 		case 'unknown':
 			return 'Unknown';
 	}
