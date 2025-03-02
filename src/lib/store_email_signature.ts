@@ -1,6 +1,12 @@
-import { processHeader } from "dkim";
-import { prisma } from '@/lib/db';
-import { verifyDKIMSignature } from "@zk-email/helpers/dist/dkim";
+import { processHeader, verifySignature } from "dkim";
+import { prisma } from "@/lib/db";
+// import { verifyDKIMSignatureDirect } from '@/lib/utils';
+import { 
+  verifyDKIMSignature,
+  DKIMVerificationResult,
+} from "@zk-email/helpers/dist/dkim";
+import fs from "fs";
+// import {DKIMVerifier} from "mailauth";
 
 async function hexdigest(data: string, hashfn: string) {
 	const crypto = require('crypto');
@@ -13,10 +19,27 @@ async function hexdigest(data: string, hashfn: string) {
 	throw new Error(`unsupported hashfn=${hashfn}`);
 }
 
+function cleanDKIMSignature(header: string): string {
+  return header
+    .split("\n")
+    .map((line) => {
+      return line.toLowerCase().startsWith("dkim-signature:")
+        ? line.replace(/b=[^;]*(;|$)/gi, "b=;")
+        : line;
+    })
+    .join("\n");
+}
+
 async function generateHashFromHeaders(signedHeaders: string, headerStrings: string[], headerCanonicalizationAlgorithm: string) {
-	let signedHeadersArray = signedHeaders.split(':');
+	const signedHeadersArray = signedHeaders.split(':').map(header => header.trim());
 	let signedData = processHeader(headerStrings, signedHeadersArray, headerCanonicalizationAlgorithm);
-	let headerHash = await hexdigest(signedData, 'sha256');
+	signedData = cleanDKIMSignature(signedData);
+  let headerHash = await hexdigest(signedData, 'sha256');
+  console.log("===========================================")
+  console.log("Signed Data  === ", signedData);
+  console.log("HeaderHash == ", headerHash);
+  console.log("Sigenr header == ", signedHeaders);
+  console.log("===========================================");
 	return headerHash;
 }
 
@@ -49,26 +72,58 @@ export async function storeEmailSignature(
 	// Normalize base64 encoding
 	dkimSignature = Buffer.from(dkimSignature, 'base64').toString('base64');
 
-	// c is optional, where the default is "simple/simple"
-	let headerCanonicalizationAlgorithm = tags.c ? tags.c.split('/')[0] : 'simple';
+  // c is optional, where the default is "simple/simple"
+  let headerCanonicalizationAlgorithm = tags.c ? tags.c.split('/')[0] : 'simple';
+  let headerHash;
+  try {
+    // Verify DKIM signature using zk-email helpers
+    const verificationResult = await verifyDKIMSignature(email);
+    const str = verificationResult.headers.toString("utf8");
+    const strArray = str.split("\r\n");
+    headerHash = await generateHashFromHeaders(signedHeaders, strArray, headerCanonicalizationAlgorithm);
+    console.log(headerHash);
+    fs.writeFileSync(`${domain}_verifier.txt`, email + "\n\n\n\n" + headerHash);
+    console.log(strArray);
+    
+  } catch (error) {
+    console.error('Error verifying DKIM signature: ', error);
+    // console.log("#######################################");
+    // headerHash = await generateHashFromHeaders(
+    //   signedHeaders,
+    //   headerStrings,
+    //   headerCanonicalizationAlgorithm
+    // );
+    // console.log(headerHash);
+    // fs.writeFileSync(
+    //   `${domain}_headers.txt`,
+    //   headerStrings.join("\r\n") + "\n\n\n\n" + headerHash
+    // );
+    // console.log("#######################################");
+  }
 
-	try {
-		// Verify DKIM signature using zk-email helpers
-		const verificationResult = await verifyDKIMSignature(email, "", true, false, true);
-	} catch (error) {
-		console.error('Error verifying DKIM signature:', error);
-	}
-	// Generate header hash using our existing function
-	let headerHash = await generateHashFromHeaders(signedHeaders, headerStrings, headerCanonicalizationAlgorithm);
-	
-	let hashAndSignatureExists = await prisma.emailSignature.findFirst({ 
-		where: { headerHash, dkimSignature } 
-	});
-	
-	if (hashAndSignatureExists) {
-		console.log(`skipping existing email signature, domain=${domain} selector=${selector}, timestamp=${timestamp}`);
-		return;
-	}
+    console.log("#######################################");
+    headerHash = await generateHashFromHeaders(
+      signedHeaders,
+      headerStrings,
+      headerCanonicalizationAlgorithm
+    );
+    console.log(headerHash);
+    fs.writeFileSync(
+      `${domain}_headers.txt`,
+      headerStrings.join("\r\n") + "\n\n\n\n" + headerHash
+    );
+    console.log("#######################################");
+
+    let hashAndSignatureExists = await prisma.emailSignature.findFirst({ 
+      where: { headerHash, dkimSignature }, 
+    });
+
+    if (hashAndSignatureExists) {
+      console.log(
+        `skipping existing email signature, domain=${domain} selector=${selector}, timestamp=${timestamp}`
+      );
+      return;
+    }
 
 	console.log(`storing email dkim signature, domain=${domain} selector=${selector}, timestamp=${timestamp}`);
 	await prisma.emailSignature.create({

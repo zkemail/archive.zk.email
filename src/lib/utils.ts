@@ -176,72 +176,60 @@ export function keySourceIdentifierToHumanReadable(sourceIdentifierStr: string) 
 export function parseEmailHeader(
   text: string
 ): Record<string, string | string[]> {
+  const result: Record<string, string | string[]> = {};
   const lines = text.split("\n");
-  const json: Record<string, string | string[]> = {};
 
-  let currentKey = "";
-  let currentValue = "";
-  let boundaryCount = 0;
-  let isBody = false;
-  let boundaryValue = "";
+  let currentKey: string | null = null;
+  let currentValue: string = "";
+  let boundary: string | null = null;
 
-  for (const line of lines) {
-    if (isBody) {
-      if (!json["body"]) {
-        json["body"] = "";
-      }
-      json["body"] += line + "\n";
-      continue;
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+
+    if (line.trim() === "" || (boundary && line.includes(boundary))) {
+      break;
     }
 
-    const keyMatch = line.match(/^([A-Za-z-]+):\s/);
-    if (keyMatch) {
-      if (currentKey) {
-        if (json[currentKey]) {
-          if (Array.isArray(json[currentKey])) {
-            (json[currentKey] as string[]).push(currentValue.trim());
+    const headerMatch = line.match(/^([A-Za-z0-9\-]+):\s*(.*)/);
+
+    if (headerMatch) {
+      if (currentKey !== null && currentValue) {
+        if (result[currentKey]) {
+          if (Array.isArray(result[currentKey])) {
+            (result[currentKey] as string[]).push(currentValue);
           } else {
-            json[currentKey] = [
-              json[currentKey] as string,
-              currentValue.trim(),
-            ];
+            result[currentKey] = [result[currentKey] as string, currentValue];
           }
         } else {
-          json[currentKey] = currentValue.trim();
+          result[currentKey] = currentValue;
         }
       }
 
-      const key = keyMatch[1];
-      const value = line.slice(keyMatch[0].length).trim();
-      currentKey = key;
-      currentValue = value;
-    } else if (currentKey) {
+      currentKey = headerMatch[1];
+      currentValue = headerMatch[2];
+    } else if (line.match(/^\s+/) && currentKey !== null) {
       currentValue += " " + line.trim();
-    }
-    if (!boundaryValue && currentKey == "Content-Type") {
-      const boundaryMatch = line.match(/boundary=([^\s;]+)/);
-      if (boundaryMatch) {
-        boundaryValue = boundaryMatch[1].trim();
+      if (currentKey === "Content-Type" && currentValue.includes("boundary=")) {
+        const boundaryMatch = currentValue.match(/boundary=([^;]*)/);
+        console.log("======= Boundary match == ", boundaryMatch);
+        if (boundaryMatch) {
+          boundary = boundaryMatch[1].replace(/"/g, "");
+        }
       }
-    }
-
-    if (boundaryValue && line.includes(boundaryValue)) {
-      boundaryCount++;
-      isBody = true;
     }
   }
 
-  if (currentKey) {
-    if (json[currentKey]) {
-      if (Array.isArray(json[currentKey])) {
-        (json[currentKey] as string[]).push(currentValue.trim());
+  if (currentKey !== null && currentValue) {
+    if (result[currentKey]) {
+      if (Array.isArray(result[currentKey])) {
+        (result[currentKey] as string[]).push(currentValue);
       } else {
-        json[currentKey] = [json[currentKey] as string, currentValue.trim()];
+        result[currentKey] = [result[currentKey] as string, currentValue];
       }
     } else {
-      json[currentKey] = currentValue.trim();
+      result[currentKey] = currentValue;
     }
   }
 
-  return json;
+  return result;
 }
