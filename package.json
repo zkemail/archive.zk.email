@@ -12,7 +12,8 @@
 		"start": "next start",
 		"preinstall": "npx only-allow pnpm",
 		"check-types": "tsc --noEmit",
-		"lint": "next lint"
+		"lint": "next lint",
+		"test": "vitest run"
 	},
 	"prisma": {
 		"seed": "tsx prisma/seed.ts"
