@@ -18,8 +18,23 @@ export async function autocomplete(query: string) {
       },
     });
 
-    return dsps.map((d) => d.domain);
+    return dsps.map((d) => d.domain).sort((a, b) => a.localeCompare(b));
   }
+
+  const startsWithMatch = await prisma.domainSelectorPair.findMany({
+    distinct: ["domain"],
+    where: {
+      domain: {
+        startsWith: query,
+      },
+    },
+    orderBy: { domain: "asc" },
+    take: 1,
+    select: {
+      domain: true,
+    },
+  });
+
 
   const modifiedQuery = query.replace(/\./g, "-");
   const modifiedQuery2 = query.replace(/\-/g, ".");
@@ -55,8 +70,15 @@ export async function autocomplete(query: string) {
     },
   });
 
-  const results = dsps.map((d) => d.domain);
+  let results = [...startsWithMatch.map((d) => d.domain), ...dsps.map((d) => d.domain)];
 
+  // remove duplicates
+  results = results.filter((v, i, a) => a.indexOf(v) === i);
+
+  // sort in alphabetical order
+  results = results.sort((a, b) => b.localeCompare(a));
+  
+  // show results that start with the query first
   return results.sort((a, b) => {
     const aStartsWithQuery = a.toLowerCase().startsWith(query.toLowerCase());
     const bStartsWithQuery = b.toLowerCase().startsWith(query.toLowerCase());
