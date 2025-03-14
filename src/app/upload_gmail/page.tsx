@@ -2,10 +2,10 @@
 
 import React, { useEffect, useRef } from "react";
 import { useSession, signIn, signOut } from "next-auth/react"
-import { LogConsole, LogRecord } from "@/components/LogConsole";
+import { LogConsole, type LogRecord } from "@/components/LogConsole";
 import { axiosErrorMessage, truncate } from "@/lib/utils";
 import axios from "axios";
-import { GmailResponse } from "../api/gmail/route";
+import type { GmailResponse } from "../api/gmail/route";
 import { actionButtonStyle } from "@/components/styles";
 import googleButtonStyles from "./page.module.css";
 
@@ -114,10 +114,10 @@ export default function Page() {
 			return <InsufficientPermissions />
 		}
 
-		let showStartButton = progressState === 'Not started';
-		let showResumeButton = progressState === 'Paused' || progressState === 'Interrupted';
-		let showPauseButton = progressState === 'Running...';
-		let showProgress = progressState !== 'Not started';
+		const showStartButton = progressState === 'Not started';
+		const showResumeButton = progressState === 'Paused' || progressState === 'Interrupted';
+		const showPauseButton = progressState === 'Running...';
+		const showProgress = progressState !== 'Not started';
 
 		return <>
 			<div style={{ fontWeight: 500 }}>
@@ -205,7 +205,7 @@ export default function Page() {
 
 	function constructGmailQuery(startDate?: string, endDate?: string, domain?: string) {
 		console.log('constructGmailQuery', startDate, endDate, domain);
-		let queryParts: string[] = [];
+		const queryParts: string[] = [];
 	
 		if (startDate) {
 			queryParts.push(`after:${startDate}`);
@@ -226,9 +226,9 @@ export default function Page() {
 		setProgressState('Running...');
 		try {
 			logmsg(`fetching page ${nextPageToken}`);
-			let params: any = { pageToken: nextPageToken, timeout: 20000, gmailQuery: currentGmailQuery };
+			const params: any = { pageToken: nextPageToken, timeout: 20000, gmailQuery: currentGmailQuery };
 
-			let response = await axios.get<GmailResponse>(gmailApiUrl, { params });
+			const response = await axios.get<GmailResponse>(gmailApiUrl, { params });
 			
 			await update();
 			if (response.data.messagesTotal) {

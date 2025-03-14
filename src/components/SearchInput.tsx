@@ -1,5 +1,5 @@
 "use client";
-import { AutocompleteResults, autocomplete } from "@/app/actions";
+import { type AutocompleteResults, autocomplete } from "@/app/actions";
 import { Autocomplete, TextField } from "@mui/material";
 import { useRouter } from "next/navigation";
 import { useState, useEffect, useCallback } from "react";

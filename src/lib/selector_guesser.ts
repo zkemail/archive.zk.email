@@ -1,4 +1,4 @@
-import { DomainAndSelector, isValidDate } from "./utils";
+import { type DomainAndSelector, isValidDate } from "./utils";
 import { addDomainSelectorPair } from "./utils_server";
 
 function dateToYYYYMMDD(date: Date): string {
@@ -33,7 +33,7 @@ function findYYYYMMDD(domain: string, selector: string, yearPattern: string, alt
 		// so we ignore that for simplicity
 		// (see https://en.wikipedia.org/wiki/List_of_date_formats_by_country)
 		const oldDateStr = match[0];
-		let [year, month, day] = match.slice(1).map(s => parseInt(s));
+		const [year, month, day] = match.slice(1).map(s => Number.parseInt(s));
 		if (!isValidDate(year, month, day)) {
 			return;
 		}
@@ -47,7 +47,7 @@ function findAABBYYYY(domain: string, selector: string, yearPattern: string, alt
 	const match = selector.match(re);
 	if (match && match.index !== undefined) {
 		const oldDateStr = match[0];
-		let [aa, bb, year] = match.slice(1).map(s => parseInt(s));
+		const [aa, bb, year] = match.slice(1).map(s => Number.parseInt(s));
 		if (isValidDate(year, aa, bb)) {
 			const newDateStr = dateToMMDDYYYY(newDate);
 			alternatives.push(getAlternativeDsp(domain, selector, oldDateStr, newDateStr));
@@ -72,7 +72,7 @@ export function findAlternatives(domain: string, selector: string, newDate: Date
 
 export async function guessSelectors(domain: string, selector: string, newDate: Date) {
 	const alternatives = findAlternatives(domain, selector, newDate);
-	let addedAlternatives = [];
+	const addedAlternatives = [];
 	for (const altDsp of alternatives) {
 		console.log(`trying guessed alternative ${JSON.stringify(altDsp)}`);
 		if ((await addDomainSelectorPair(altDsp.domain, altDsp.selector, 'selector_guesser')).added) {

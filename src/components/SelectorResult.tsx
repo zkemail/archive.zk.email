@@ -1,5 +1,5 @@
-import { RecordWithSelector } from '@/lib/db';
-import { FC, ReactNode } from 'react';
+import type { RecordWithSelector } from '@/lib/db';
+import type { FC, ReactNode } from 'react';
 import { cardStyle } from './styles';
 import { getCanonicalRecordString, dspSourceIdentifierToHumanReadable, keySourceIdentifierToHumanReadable } from '@/lib/utils';
 import { WitnessClient } from '@witnessco/client';

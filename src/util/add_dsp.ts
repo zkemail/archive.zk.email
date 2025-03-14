@@ -9,7 +9,7 @@ async function main() {
 	const domain = args[0];
 	const selector = args[1];
 	try {
-		let added = (await addDomainSelectorPair(domain, selector, 'scraper')).added;
+		const added = (await addDomainSelectorPair(domain, selector, 'scraper')).added;
 		console.log(`domain: ${domain}, selector: ${selector}, added: ${added}`);
 	}
 	catch (error: any) {
