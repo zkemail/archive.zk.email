@@ -1,6 +1,6 @@
 "use server";
 import { prisma } from "@/lib/db";
-import { DkimRecord, DomainSelectorPair, Prisma } from "@prisma/client";
+import { type DkimRecord, type DomainSelectorPair, Prisma } from "@prisma/client";
 
 export type AutocompleteResults = string[];
 

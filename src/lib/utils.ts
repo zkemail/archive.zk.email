@@ -1,6 +1,6 @@
-import { ReadonlyHeaders } from "next/dist/server/web/spec-extension/adapters/headers";
-import { RateLimiterMemory } from "rate-limiter-flexible";
-import { KeyType } from "@prisma/client";
+import type { ReadonlyHeaders } from "next/dist/server/web/spec-extension/adapters/headers";
+import type { RateLimiterMemory } from "rate-limiter-flexible";
+import type { KeyType } from "@prisma/client";
 
 export type DomainAndSelector = {
 	domain: string,
@@ -55,7 +55,7 @@ export function parseDkimTagList(dkimValue: string): Record<string, string> {
 }
 
 export function load_domains_and_selectors_from_tsv(fileContent: string): DomainAndSelector[] {
-	let result = [];
+	const result = [];
 	const lines = fileContent.split('\n').map(line => line.trim()).filter(line => line);
 	for (let i = 0; i < lines.length; i++) {
 		const [domain, selector] = lines[i].split('\t');

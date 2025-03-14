@@ -2,12 +2,12 @@ import { prisma } from "@/lib/db";
 import { parseDkimTagList } from "@/lib/utils";
 
 async function main() {
-	let dkimRecords = []
+	const dkimRecords = []
 	let nextCursor = 0;
-	let take = 100000;
+	const take = 100000;
 	while (true) {
 		const cursorObj = (nextCursor == 0) ? null : { cursor: { id: nextCursor } };
-		let recs = await prisma.dkimRecord.findMany({
+		const recs = await prisma.dkimRecord.findMany({
 			skip: (nextCursor == 0) ? 0 : 1,
 			take: take,
 			...cursorObj,
@@ -17,17 +17,17 @@ async function main() {
 		if (recs.length == 0) {
 			break;
 		}
-		for (let r of recs) {
+		for (const r of recs) {
 			dkimRecords.push(r);
 		}
 		nextCursor = recs[recs.length - 1].id;
 	}
 	console.log(`found ${dkimRecords.length} records`);
 
-	let invalid_records_without_p = []
-	let invalid_records_with_p = []
-	for (let r of dkimRecords) {
-		let tagList = parseDkimTagList(r.value);
+	const invalid_records_without_p = []
+	const invalid_records_with_p = []
+	for (const r of dkimRecords) {
+		const tagList = parseDkimTagList(r.value);
 		if (!tagList.hasOwnProperty('p')) {
 			if (r.value.includes('p=')) {
 				invalid_records_with_p.push(r);
@@ -38,14 +38,14 @@ async function main() {
 		}
 	}
 	console.log(`found ${invalid_records_without_p.length} records that do not contain p=`);
-	for (let r of invalid_records_without_p) {
+	for (const r of invalid_records_without_p) {
 		const dns = `${r.domainSelectorPair.selector}._domainkey.${r.domainSelectorPair.domain}`
 		console.log(`${dns}\t${r.value}`);
 	}
 
 	console.log();
 	console.log(`found ${invalid_records_with_p.length} records that contain p=, but that could not be parsed as a tag list`);
-	for (let r of invalid_records_with_p) {
+	for (const r of invalid_records_with_p) {
 		const dns = `${r.domainSelectorPair.selector}._domainkey.${r.domainSelectorPair.domain}`
 		console.log(`${dns}\t${r.value}`);
 	}
