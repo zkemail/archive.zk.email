@@ -6,12 +6,12 @@ export const revalidate = 60;
 export default async function Page() {
 
 	// https://github.com/prisma/prisma/issues/4228
-	type CountResult = [{ count: BigInt }]
-	let [uniqueDomainsCount] = await prisma.$queryRaw`SELECT COUNT(DISTINCT domain) FROM "DomainSelectorPair";` as CountResult;
-	let [uniqueSelectorsCount] = await prisma.$queryRaw`SELECT COUNT(DISTINCT selector) FROM "DomainSelectorPair";` as CountResult;
+	type CountResult = [{ count: bigint }]
+	const [uniqueDomainsCount] = await prisma.$queryRaw`SELECT COUNT(DISTINCT domain) FROM "DomainSelectorPair";` as CountResult;
+	const [uniqueSelectorsCount] = await prisma.$queryRaw`SELECT COUNT(DISTINCT selector) FROM "DomainSelectorPair";` as CountResult;
 
-	let domainSelectorPairCount = await prisma.domainSelectorPair.count();
-	let dkimKeyCount = await prisma.dkimRecord.count();
+	const domainSelectorPairCount = await prisma.domainSelectorPair.count();
+	const dkimKeyCount = await prisma.dkimRecord.count();
 
 	return (
 		<div>

@@ -1,6 +1,7 @@
 "use client";
-import { RecordWithSelector } from "@/lib/db";
-import React, { useEffect } from "react";
+import type { RecordWithSelector } from "@/lib/db";
+import type React from "react";
+import { useEffect } from "react";
 import { useInView } from "react-intersection-observer";
 import { SelectorResult } from "./SelectorResult";
 
