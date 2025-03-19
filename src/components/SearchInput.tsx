@@ -10,7 +10,10 @@ interface SearchFormProps {
   setIsLoading: (isLoading: boolean) => void;
 }
 
-export const SearchInput: React.FC<SearchFormProps> = ({ domainQuery, setIsLoading }) => {
+export const SearchInput: React.FC<SearchFormProps> = ({
+  domainQuery,
+  setIsLoading,
+}) => {
   const router = useRouter();
   const [searchResults, setSearchResults] = useState<AutocompleteResults>([]);
   const [inputValue, setInputValue] = useState<string>(domainQuery || "");
@@ -27,6 +30,7 @@ export const SearchInput: React.FC<SearchFormProps> = ({ domainQuery, setIsLoadi
   );
 
   const inputChanged = (_event: React.SyntheticEvent, value: string) => {
+    setSearchResults([]);
     setInputValue(value);
     debouncedAutocomplete.cancel();
     if (value) {
