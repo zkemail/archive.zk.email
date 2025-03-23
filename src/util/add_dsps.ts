@@ -10,7 +10,7 @@ async function process_line(line: string) {
 		return;
 	}
 	try {
-		let added = (await addDomainSelectorPair(domain, selector, 'scraper')).added;
+		const added = (await addDomainSelectorPair(domain, selector, 'scraper')).added;
 		console.log(`domain: ${domain}, selector: ${selector}, added: ${added}`);
 	}
 	catch (error: any) {
@@ -28,8 +28,8 @@ async function main() {
 		const lines = fileContent.split('\n').map(line => line.trim()).filter(line => line);
 		for (let i = 0; i < lines.length; i++) {
 			const line = lines[i];
-			let elapsed = Date.now() - start_time;
-			let time_left = (elapsed / (i + 1)) * (lines.length - i);
+			const elapsed = Date.now() - start_time;
+			const time_left = (elapsed / (i + 1)) * (lines.length - i);
 			console.error(`processing line ${i + 1} of ${lines.length}, time left: ${(time_left / 1000 / 60).toFixed(2)} minutes`);
 			await process_line(line);
 		}

@@ -2,7 +2,7 @@
 
 import { findKeysPaginated, findKeysPaginatedModifiedQuery } from "@/app/actions";
 import Loading from "@/app/loading";
-import { RecordWithSelector } from "@/lib/db";
+import type { RecordWithSelector } from "@/lib/db";
 import { parseDkimTagList } from "@/lib/utils";
 import { useCallback, useEffect, useState } from "react";
 import { DomainSearchResultsDisplay } from "./DomainSearchResultsDisplay";

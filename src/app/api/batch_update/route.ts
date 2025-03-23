@@ -10,7 +10,7 @@ export async function GET(request: NextRequest) {
 		return new Response('Unauthorized', { status: 401 });
 	}
 
-	let numRecords = Number(request.nextUrl.searchParams.get('batch_size') || '10');
+	const numRecords = Number(request.nextUrl.searchParams.get('batch_size') || '10');
 	try {
 		const oneDayAgo = new Date(Date.now() - 1000 * 60 * 60 * 24);
 		const dsps = await prisma.domainSelectorPair.findMany(
@@ -21,11 +21,11 @@ export async function GET(request: NextRequest) {
 			}
 		);
 		console.log(`found ${dsps.length} records to update, max limit: ${numRecords}`);
-		let addedAlternatives = [];
+		const addedAlternatives = [];
 		for (const dsp of dsps) {
 			try {
 				await fetchAndStoreDkimDnsRecord(dsp);
-				let now = new Date();
+				const now = new Date();
 				updateDspTimestamp(dsp, now);
 				addedAlternatives.push(... await guessSelectors(dsp.domain, dsp.selector, now));
 			}
