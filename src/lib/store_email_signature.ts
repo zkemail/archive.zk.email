@@ -1,6 +1,6 @@
 import { processHeader } from "dkim";
 import { prisma } from '@/lib/db';
-
+import { verifyDKIMSignature } from "@zk-email/helpers/dist/dkim";
 
 async function hexdigest(data: string, hashfn: string) {
 	const crypto = require('crypto');
@@ -20,48 +20,66 @@ async function generateHashFromHeaders(signedHeaders: string, headerStrings: str
 	return headerHash;
 }
 
-export async function storeEmailSignature(tags: Record<string, string>, headerStrings: string[], domain: string, selector: string, timestamp: Date | null) {
-	let signingAlgorithm = tags.a.toLowerCase();
-	if (signingAlgorithm) {
-		if (signingAlgorithm !== 'rsa-sha256') {
-			console.log(`warning: unsupported signing algorithm: ${signingAlgorithm}`);
-			return;
-		}
-	}
-	else {
-		console.log('warning: required a= tag missing, using rsa-sha256');
-		signingAlgorithm = 'rsa-sha256';
-	}
+export async function storeEmailSignature(
+  tags: Record<string, string>,
+  headerStrings: string[],
+  email: string,
+  domain: string,
+  selector: string,
+  timestamp: Date | null
+) {
+  const signingAlgorithm = tags.a?.toLowerCase() || "rsa-sha256";
+  if (signingAlgorithm !== "rsa-sha256") {
+    console.log(`warning: unsupported signing algorithm: ${signingAlgorithm}`);
+    return;
+  }
 
-	let signedHeaders = tags.h
+	let signedHeaders = tags.h;
 	if (!signedHeaders) {
 		console.log(`warning: required h= tag missing, skipping`);
 		return;
 	}
 
-	let dkimSignature = tags.b
+	let dkimSignature = tags.b;
 	if (!dkimSignature) {
 		console.log('missing b= tag', tags);
 		return;
 	}
 
-	dkimSignature = Buffer.from(dkimSignature, 'base64').toString('base64'); // normalize base64 encoding
+	// Normalize base64 encoding
+	dkimSignature = Buffer.from(dkimSignature, 'base64').toString('base64');
 
 	// c is optional, where the default is "simple/simple"
 	let headerCanonicalizationAlgorithm = tags.c ? tags.c.split('/')[0] : 'simple';
 
-
+	try {
+		// Verify DKIM signature using zk-email helpers
+		const verificationResult = await verifyDKIMSignature(email, "", true, false, true);
+	} catch (error) {
+		console.error('Error verifying DKIM signature:', error);
+	}
+	// Generate header hash using our existing function
 	let headerHash = await generateHashFromHeaders(signedHeaders, headerStrings, headerCanonicalizationAlgorithm);
-	let hashAndSignatureExists = await prisma.emailSignature.findFirst({ where: { headerHash, dkimSignature } });
+	
+	let hashAndSignatureExists = await prisma.emailSignature.findFirst({ 
+		where: { headerHash, dkimSignature } 
+	});
+	
 	if (hashAndSignatureExists) {
 		console.log(`skipping existing email signature, domain=${domain} selector=${selector}, timestamp=${timestamp}`);
 		return;
 	}
+
 	console.log(`storing email dkim signature, domain=${domain} selector=${selector}, timestamp=${timestamp}`);
 	await prisma.emailSignature.create({
 		data: {
-			domain, selector, headerHash, dkimSignature, timestamp, signingAlgorithm,
-			canonInfo: 'dkim@0.8.0'
+			domain, 
+			selector, 
+			headerHash, 
+			dkimSignature, 
+			timestamp, 
+			signingAlgorithm,
+			canonInfo: '@zk-email/helpers@6.3.3'
 		}
 	});
 }

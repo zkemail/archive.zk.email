@@ -57,7 +57,7 @@ def find_n(message_hashes_hex: list[str], signatures: list[bytes], hashfn: str) 
 
 			start_time = time.process_time()
 			n: Any = gmpy2_gcd(*gcd_input)
-			logging.info(f'gcd cpu time={time.process_time() - start_time}')
+			logging.info(f'gcd cpu time={time.process_time() - start_time} and n bits={n.bit_length()} and size of inputs in gcd_input={gcd_input[0].bit_length(), gcd_input[1].bit_length()}')
 
 			if n.bit_length() > 10000:
 				logging.error(f'skip n with > 10000 bits')

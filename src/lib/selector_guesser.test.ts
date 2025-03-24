@@ -1,5 +1,10 @@
-import { expect, test } from 'vitest'
+import { expect, test, vi } from "vitest";
 import { findAlternatives } from './selector_guesser'
+
+// Added to bypass db connection during test-execution in ci
+vi.mock("./utils_server", () => ({
+  addDomainSelectorPair: vi.fn().mockResolvedValue({ added: false }),
+}));
 
 const today = new Date('2024-11-22');
 const currentYear = today.getFullYear().toString();

@@ -23,11 +23,15 @@ def get_domain_selectors(outputDict: dict[str, list[str]], mboxFile: str):
 		dkimSignatures = message.get_all('DKIM-Signature')
 		if not dkimSignatures:
 			continue
+		from_domains: list[str] = []
 		for dkimSignature in dkimSignatures:
 			dkimRecord = decode_dkim_tag_value_list(dkimSignature)
 			domain = dkimRecord['d']
 			selector = dkimRecord['s']
 			add_to_dict(outputDict, domain, selector, date)
+			from_domains.append(domain)
+		if len(from_domains) > 1:
+			print(f"Multiple from domains in message: {from_domains}")
 
 
 def main():

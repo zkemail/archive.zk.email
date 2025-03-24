@@ -17,7 +17,8 @@ export const SearchInput: React.FC<SearchFormProps> = ({ domainQuery, setIsLoadi
 
   const debouncedAutocomplete = useCallback(
     debounce(async (value: string) => {
-      if (value.trim() !== "") {
+      value = value.trim();
+      if (value !== "") {
         const results = await autocomplete(value);
         setSearchResults(results);
       }

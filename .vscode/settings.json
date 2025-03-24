@@ -3,5 +3,6 @@
 	"yapf.args": [
 		"--style=.style.yapf"
 	],
-	"yaml.format.singleQuote": true
+	"yaml.format.singleQuote": true,
+	"editor.defaultFormatter": "biomejs.biome"
 }

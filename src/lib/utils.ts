@@ -174,3 +174,76 @@ export function keySourceIdentifierToHumanReadable(sourceIdentifierStr: string) 
 			return 'Unknown';
 	}
 }
+
+export function parseEmailHeader(
+  text: string
+): Record<string, string | string[]> {
+  const lines = text.split("\n");
+  const json: Record<string, string | string[]> = {};
+
+  let currentKey = "";
+  let currentValue = "";
+  let boundaryCount = 0;
+  let isBody = false;
+  let boundaryValue = "";
+
+  for (const line of lines) {
+    if (isBody) {
+      if (!json["body"]) {
+        json["body"] = "";
+      }
+      json["body"] += line + "\n";
+      continue;
+    }
+
+    const keyMatch = line.match(/^([A-Za-z-]+):\s/);
+    if (keyMatch) {
+      if (currentKey) {
+        if (json[currentKey]) {
+          if (Array.isArray(json[currentKey])) {
+            (json[currentKey] as string[]).push(currentValue.trim());
+          } else {
+            json[currentKey] = [
+              json[currentKey] as string,
+              currentValue.trim(),
+            ];
+          }
+        } else {
+          json[currentKey] = currentValue.trim();
+        }
+      }
+
+      const key = keyMatch[1];
+      const value = line.slice(keyMatch[0].length).trim();
+      currentKey = key;
+      currentValue = value;
+    } else if (currentKey) {
+      currentValue += " " + line.trim();
+    }
+    if (!boundaryValue && currentKey == "Content-Type") {
+      const boundaryMatch = line.match(/boundary=([^\s;]+)/);
+      if (boundaryMatch) {
+        boundaryValue = boundaryMatch[1].trim();
+      }
+    }
+
+    if (boundaryValue && line.includes(boundaryValue)) {
+      boundaryCount++;
+      isBody = true;
+    }
+  }
+
+  if (currentKey) {
+    if (json[currentKey]) {
+      if (Array.isArray(json[currentKey])) {
+        (json[currentKey] as string[]).push(currentValue.trim());
+      } else {
+        json[currentKey] = [json[currentKey] as string, currentValue.trim()];
+      }
+    } else {
+      json[currentKey] = currentValue.trim();
+    }
+  }
+
+  return json;
+}
