@@ -124,7 +124,7 @@ export default function Page() {
 				Progress: {progressState}
 			</div>
 			<div style={{ display: 'flex', flexDirection: 'column' }}>
-				<div style={{ fontStyle: 'italic', color: '#555' }}>The folowing fields are optional:</div>
+				<div style={{ fontStyle: 'italic', color: '#555' }}>The following fields are optional:</div>
 				<label>
 					Start Date:
 					<input
@@ -237,8 +237,9 @@ export default function Page() {
 			for (const addDspResult of response.data.addDspResults) {
 				const pair = addDspResult.domainSelectorPair;
 				const pairString = JSON.stringify(pair);
+				const timestamp = addDspResult.mailTimestamp;
 				if (!uploadedPairs.has(pairString)) {
-					logmsg('new pair found: ' + JSON.stringify(pair));
+					logmsg('new pair found: ' + JSON.stringify({ ...pair, timestamp }));
 					if (addDspResult.addResult.added) {
 						logmsg(`${pairString} was added to the archive`);
 						setAddedPairs(addedPairs => addedPairs + 1);

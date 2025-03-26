@@ -51,7 +51,10 @@ export function parseDkimTagList(dkimValue: string): Record<string, string> {
 		const key = part.slice(0, i).trim();
 		const value = part.slice(i + 1).trim();
 		if (result.hasOwnProperty(key)) {
-			// duplicate key, keep the first one
+			// duplicate key, keep the longer value
+			if (value.length > result[key].length) {
+				result[key] = value;
+			}
 			continue;
 		}
 		result[key] = value;
@@ -190,6 +193,78 @@ export function keySourceIdentifierToHumanReadable(sourceIdentifierStr: string) 
 	}
 }
 
+export function parseEmailHeader(
+  text: string
+): Record<string, string | string[]> {
+  const lines = text.split("\n");
+  const json: Record<string, string | string[]> = {};
+
+  let currentKey = "";
+  let currentValue = "";
+  let boundaryCount = 0;
+  let isBody = false;
+  let boundaryValue = "";
+
+  for (const line of lines) {
+    if (isBody) {
+      if (!json["body"]) {
+        json["body"] = "";
+      }
+      json["body"] += line + "\n";
+      continue;
+    }
+
+    const keyMatch = line.match(/^([A-Za-z-]+):\s/);
+    if (keyMatch) {
+      if (currentKey) {
+        if (json[currentKey]) {
+          if (Array.isArray(json[currentKey])) {
+            (json[currentKey] as string[]).push(currentValue.trim());
+          } else {
+            json[currentKey] = [
+              json[currentKey] as string,
+              currentValue.trim(),
+            ];
+          }
+        } else {
+          json[currentKey] = currentValue.trim();
+        }
+      }
+
+      const key = keyMatch[1];
+      const value = line.slice(keyMatch[0].length).trim();
+      currentKey = key;
+      currentValue = value;
+    } else if (currentKey) {
+      currentValue += " " + line.trim();
+    }
+    if (!boundaryValue && currentKey == "Content-Type") {
+      const boundaryMatch = line.match(/boundary=([^\s;]+)/);
+      if (boundaryMatch) {
+        boundaryValue = boundaryMatch[1].trim();
+      }
+    }
+
+    if (boundaryValue && line.includes(boundaryValue)) {
+      boundaryCount++;
+      isBody = true;
+    }
+  }
+
+  if (currentKey) {
+    if (json[currentKey]) {
+      if (Array.isArray(json[currentKey])) {
+        (json[currentKey] as string[]).push(currentValue.trim());
+      } else {
+        json[currentKey] = [json[currentKey] as string, currentValue.trim()];
+      }
+    } else {
+      json[currentKey] = currentValue.trim();
+    }
+  }
+
+  return json;
+}
 export async function fetchJsonWebKeySet(): Promise<string> {
   try {
     const response = await fetch('https://www.googleapis.com/oauth2/v3/certs');

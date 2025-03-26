@@ -1,5 +1,5 @@
 import { authOptions } from "@/app/auth";
-import { DomainAndSelector, parseDkimTagList } from "@/lib/utils";
+import { DomainAndSelector, parseDkimTagList, parseEmailHeader } from "@/lib/utils";
 import { gmail_v1, google } from "googleapis";
 import { getToken } from "next-auth/jwt";
 import { getServerSession } from "next-auth/next";
@@ -16,9 +16,13 @@ async function handleMessage(
   const messageRes = await gmail.users.messages.get({
     userId: "me",
     id: messageId,
-    format: "metadata",
+    format: "raw",
   });
-  let headers = messageRes.data.payload?.headers;
+  const encodedEmailRaw = messageRes.data.raw;
+  const decodedEmailRaw = Buffer.from(encodedEmailRaw!, "base64").toString(
+    "utf-8"
+  );
+  const headers = parseEmailHeader(decodedEmailRaw);
   if (!headers) {
     throw "missing headers";
   }
@@ -30,34 +34,46 @@ async function handleMessage(
       ? internalDate
       : null;
 
-  let dkimSigs = headers.filter(
-    (header) => header?.name && header.name.toLowerCase() === "dkim-signature"
-  );
-  let headerStrings = headers.map(
-    (header: any) => `${header.name}: ${header.value}`
-  );
-  for (let dkimSig of dkimSigs) {
-    if (!dkimSig.value) {
+  const dkimSigs = headers["DKIM-Signature"] || [];
+  const dkimSigsArray: string[] = Array.isArray(dkimSigs)
+    ? dkimSigs
+    : [dkimSigs];
+  const headerStrings: string[] = [];
+  for (const [key, value] of Object.entries(headers)) {
+    headerStrings.push(`${key}: ${value}`);
+  }
+  for (const dkimSig of dkimSigsArray) {
+    if (!dkimSig) {
       console.log("missing DKIM-Signature value", dkimSig);
       continue;
     }
-    let tags = parseDkimTagList(dkimSig.value);
-    let domain = tags.d;
+    const tags = parseDkimTagList(dkimSig);
+    const domain = tags.d;
     if (!domain) {
       console.log("missing d tag", tags);
       continue;
     }
-    let selector = tags.s;
+    const selector = tags.s;
     if (!selector) {
       console.log("missing s tag", tags);
       continue;
     }
-
-    storeEmailSignature(tags, headerStrings, domain, selector, internalDate);
+    storeEmailSignature(
+      tags,
+      headerStrings,
+      decodedEmailRaw,
+      domain,
+      selector,
+      internalDate
+    );
     let addResult = await addDomainSelectorPair(domain, selector, "api");
 
     let domainSelectorPair = { domain, selector };
-    resultArray.push({ addResult, domainSelectorPair });
+    resultArray.push({
+      addResult,
+      domainSelectorPair,
+      mailTimestamp: internalDate?.toString(),
+    });
   }
   return resultArray;
 }
@@ -65,6 +81,7 @@ async function handleMessage(
 type AddDspResult = {
   addResult: AddResult;
   domainSelectorPair: DomainAndSelector;
+  mailTimestamp?: String;
 };
 
 export type GmailResponse = {
