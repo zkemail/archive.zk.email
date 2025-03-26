@@ -134,6 +134,7 @@ export async function updateJWKeySet() {
     const latestJsonWebKeySet = await fetchJsonWebKeySet();
     if (latestx509Cert == "" || latestJsonWebKeySet == "") {
       console.error("Error fetching latest keys");
+	  return;
     }
     if (lastJWKeySet?.x509Certificate != latestx509Cert) {
       return await prisma.jsonWebKeySets.create({
