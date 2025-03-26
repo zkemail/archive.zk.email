@@ -7,6 +7,14 @@ export type DomainAndSelector = {
 	selector: string
 };
 
+export type jwkSet = {
+	id: number;
+  	x509Certificate: string;
+  	jwks: string;
+  	lastUpdated: Date;
+  	provenanceVerified: boolean | null;
+}
+
 export interface DnsDkimFetchResult {
 	domain: string;
 	selector: string;
@@ -72,6 +80,49 @@ export function getCanonicalRecordString(dsp: DomainAndSelector, dkimRecordValue
 	return `${dsp.selector}._domainkey.${dsp.domain} TXT "${dkimRecordValue}"`;
 }
 
+// Canonicalize X.509 certificates
+function canonicalizeX509(certString: string): string {
+  const certs = JSON.parse(certString);
+  const sortedEntries = Object.entries(certs)
+    .sort(([a], [b]) => a.localeCompare(b));
+  
+  const sortedCerts = Object.fromEntries(sortedEntries);
+  return JSON.stringify(sortedCerts, Object.keys(sortedCerts).sort());
+}
+
+// Canonicalize JWKS
+function canonicalizeJwks(jwksString: string): string {
+  const jwks = JSON.parse(jwksString);
+  
+  const sortedKeys = jwks.keys.sort((a: any, b: any) => 
+    a.kid.localeCompare(b.kid)
+  );
+  
+  const canonicalKeys = sortedKeys.map((key: any) => {
+    const orderedKey: Record<string, any> = {};
+    Object.keys(key)
+      .sort()
+      .forEach(k => orderedKey[k] = key[k]);
+    return orderedKey;
+  });
+  return JSON.stringify({ keys: canonicalKeys }, null, 0);
+}
+
+export function getCanonicalJWKRecordString(
+  jwkSet: jwkSet 
+): string {
+	const canonicalX509 = canonicalizeX509(jwkSet.x509Certificate);
+    const canonicalJwks = canonicalizeJwks(jwkSet.jwks);
+  
+	const canonicalObject = {
+    x509Certificate: canonicalX509,
+    jwks: canonicalJwks,
+    lastUpdated: jwkSet.lastUpdated,
+    provenanceVerified: jwkSet.provenanceVerified,
+  };
+  
+  return JSON.stringify(canonicalObject, Object.keys(canonicalObject).sort());
+}
 
 function dataToMessage(data: any): string {
 	if (!data) {
@@ -244,4 +295,38 @@ export function parseEmailHeader(
   }
 
   return json;
+}
+export async function fetchJsonWebKeySet(): Promise<string> {
+  try {
+    const response = await fetch('https://www.googleapis.com/oauth2/v3/certs');
+    if (!response.ok) {
+      throw new Error('Cannot fetch Google JSON Web Key Set');
+    }
+    const jsonData = await response.json();
+	console.log(jsonData);
+    const jsonWebKeySet = JSON.stringify(
+      jsonData,
+      null,
+      2
+    );
+    return jsonWebKeySet;
+  } catch (error) {
+    console.error('Error fetching JSON Web Key Set:', error);
+    return "";
+  }
+}
+
+export async function fetchx509Cert(): Promise<string> {
+  try {
+    const response = await fetch('https://www.googleapis.com/oauth2/v1/certs');
+    if (!response.ok) {
+      throw new Error('Cannot fetch Google X.509 certificate');
+    }
+    const jsonData = await response.json();
+	const x509Cert = JSON.stringify(jsonData,  Object.keys(jsonData).sort(), 2);
+    return x509Cert;
+  } catch (error) {
+    console.error('Error fetching X.509 certificate:', error);
+    return "";
+  }
 }
