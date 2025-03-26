@@ -3,22 +3,32 @@
 import DomainSearchResults from "@/components/DomainSearchResults";
 import { SearchInput } from "@/components/SearchInput";
 import { JWKArchiveDisplayList } from "@/components/JWKArchiveDisplay";
-import Link from "next/link";
-import { useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { useState, useEffect } from "react";
 
-export default function Home({ searchParams }: { searchParams: { [key: string]: string | string[] | undefined } }) {
-  const domainQuery = searchParams?.domain?.toString();
+export default function Home() {
+  const searchParams = useSearchParams();
+  const router = useRouter();
+
+  const domainQuery = searchParams.get("domain") || "";
+  const archiveParam = searchParams.get("archive") as "dkim" | "jwk" | null;
+  const [selectedArchive, setSelectedArchive] = useState<"dkim" | "jwk">(archiveParam || "dkim");
   const [isLoading, setIsLoading] = useState(true);
-  const [selectedArchive, setSelectedArchive] = useState<'dkim' | 'jwk'>('dkim');
+
+  useEffect(() => {
+    if (!archiveParam) {
+      router.replace(`?archive=${selectedArchive}`, { scroll: false });
+    }
+  }, []);
 
   const handleArchiveChange = (event: React.ChangeEvent<HTMLSelectElement>) => {
-    setSelectedArchive(event.target.value as 'dkim' | 'jwk');
+    const newArchive = event.target.value as "dkim" | "jwk";
+    setSelectedArchive(newArchive);
+    router.push(`?archive=${newArchive}`, { scroll: false });
   };
 
   return (
     <div style={{ display: "flex", minHeight: "100vh", flexDirection: "column", alignItems: "center" }}>
-      
-
       <div style={{ paddingTop: "8rem", paddingBottom: "2rem" }}>
         <select
           id="archive-select"

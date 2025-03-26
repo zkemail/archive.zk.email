@@ -80,12 +80,43 @@ export function getCanonicalRecordString(dsp: DomainAndSelector, dkimRecordValue
 	return `${dsp.selector}._domainkey.${dsp.domain} TXT "${dkimRecordValue}"`;
 }
 
+// Canonicalize X.509 certificates
+function canonicalizeX509(certString: string): string {
+  const certs = JSON.parse(certString);
+  const sortedEntries = Object.entries(certs)
+    .sort(([a], [b]) => a.localeCompare(b));
+  
+  const sortedCerts = Object.fromEntries(sortedEntries);
+  return JSON.stringify(sortedCerts, Object.keys(sortedCerts).sort());
+}
+
+// Canonicalize JWKS
+function canonicalizeJwks(jwksString: string): string {
+  const jwks = JSON.parse(jwksString);
+  
+  const sortedKeys = jwks.keys.sort((a: any, b: any) => 
+    a.kid.localeCompare(b.kid)
+  );
+  
+  const canonicalKeys = sortedKeys.map((key: any) => {
+    const orderedKey: Record<string, any> = {};
+    Object.keys(key)
+      .sort()
+      .forEach(k => orderedKey[k] = key[k]);
+    return orderedKey;
+  });
+  return JSON.stringify({ keys: canonicalKeys }, null, 0);
+}
+
 export function getCanonicalJWKRecordString(
   jwkSet: jwkSet 
 ): string {
+	const canonicalX509 = canonicalizeX509(jwkSet.x509Certificate);
+    const canonicalJwks = canonicalizeJwks(jwkSet.jwks);
+  
 	const canonicalObject = {
-    x509Certificate: jwkSet.x509Certificate,
-    jwks: jwkSet.jwks,
+    x509Certificate: canonicalX509,
+    jwks: canonicalJwks,
     lastUpdated: jwkSet.lastUpdated,
     provenanceVerified: jwkSet.provenanceVerified,
   };
@@ -292,7 +323,7 @@ export async function fetchx509Cert(): Promise<string> {
       throw new Error('Cannot fetch Google X.509 certificate');
     }
     const jsonData = await response.json();
-    const x509Cert = JSON.stringify(jsonData,  Object.keys(jsonData).sort(), 2);
+	const x509Cert = JSON.stringify(jsonData,  Object.keys(jsonData).sort(), 2);
     return x509Cert;
   } catch (error) {
     console.error('Error fetching X.509 certificate:', error);

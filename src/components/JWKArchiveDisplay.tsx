@@ -59,9 +59,9 @@ export const JWKArchiveDisplayList: FC<JWKArchiveDisplayListProps> = () => {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const response = await fetch('/api/key/fetchJwkSet');
+        const response = await fetch('/api/jwk_set');
         const data: JWKData[] = await response.json();
-        setRecords(data);
+        setRecords(data); 
       } catch (error) {
         console.error('Error fetching data:', error);
       } finally {
