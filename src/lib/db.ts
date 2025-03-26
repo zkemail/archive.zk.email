@@ -1,8 +1,8 @@
-import { PrismaClient, Prisma, DkimRecord, DomainSelectorPair } from '@prisma/client'
-import { DnsDkimFetchResult, fetchJsonWebKeySet, fetchx509Cert } from './utils';
+import { PrismaClient, Prisma, type DkimRecord, type DomainSelectorPair } from '@prisma/client'
+import type { DnsDkimFetchResult, fetchJsonWebKeySet, fetchx509Cert } from './utils';
 
 const createPrismaClient = () => {
-	let prismaUrl = new URL(process.env.POSTGRES_PRISMA_URL as string);
+	const prismaUrl = new URL(process.env.POSTGRES_PRISMA_URL as string);
 	prismaUrl.searchParams.set('pool_timeout', '0');
 	return new PrismaClient({
 		datasources: {
@@ -59,14 +59,14 @@ export function dspToString(dsp: DomainSelectorPair): string {
 }
 
 export function recordToString(record: DkimRecord): string {
-	let value = record.value;
+	const value = record.value;
 	const maxLen = 50;
-	let valueTruncated = (value.length > maxLen) ? value.slice(0, maxLen - 1) + '…' : value;
+	const valueTruncated = (value.length > maxLen) ? value.slice(0, maxLen - 1) + '…' : value;
 	return `#${record.id}, "${valueTruncated}"`;
 }
 
 export async function updateDspTimestamp(dsp: DomainSelectorPair, timestamp: Date) {
-	let updatedSelector = await prisma.domainSelectorPair.update({
+	const updatedSelector = await prisma.domainSelectorPair.update({
 		where: {
 			id: dsp.id
 		},
@@ -78,7 +78,7 @@ export async function updateDspTimestamp(dsp: DomainSelectorPair, timestamp: Dat
 }
 
 export async function createDkimRecord(dsp: DomainSelectorPair, dkimDsnRecord: DnsDkimFetchResult) {
-	let dkimRecord = await prisma.dkimRecord.create({
+	const dkimRecord = await prisma.dkimRecord.create({
 		data: {
 			domainSelectorPairId: dsp.id,
 			value: dkimDsnRecord.value,

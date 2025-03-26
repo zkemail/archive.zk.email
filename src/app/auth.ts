@@ -1,4 +1,4 @@
-import { Session, TokenSet } from "next-auth"
+import type { Session, TokenSet } from "next-auth"
 import GoogleProvider from "next-auth/providers/google"
 
 // https://authjs.dev/guides/basics/refresh-token-rotation?frameworks=core
@@ -65,7 +65,7 @@ export const authOptions = {
 			if (typeof token.scope == 'string') {
 				has_gmail_scope = token.scope.split(' ').includes('https://www.googleapis.com/auth/gmail.readonly')
 			}
-			let sessionResponse = {
+			const sessionResponse = {
 				error: token.error,
 				expires: session.expires,
 				user: session.user,

@@ -1,5 +1,5 @@
 import { findRecords } from "@/lib/db";
-import { NextRequest, NextResponse } from "next/server";
+import { type NextRequest, NextResponse } from "next/server";
 import { headers } from "next/headers";
 import { RateLimiterMemory } from "rate-limiter-flexible";
 import { checkRateLimiter } from "@/lib/utils";
@@ -38,7 +38,7 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    let result: DomainSearchResults[] = records.map((record) => ({
+    const result: DomainSearchResults[] = records.map((record) => ({
       domain: record.domainSelectorPair.domain,
       selector: record.domainSelectorPair.selector,
       firstSeenAt: record.firstSeenAt,

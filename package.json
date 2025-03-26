@@ -43,6 +43,7 @@
 	},
 	"//": "prisma 5.11.0 needed for Prisma Client Python",
 	"devDependencies": {
+		"@biomejs/biome": "1.9.4",
 		"@types/lodash": "^4.17.10",
 		"@types/node": "^20.12.12",
 		"@types/node-cron": "^3.0.11",

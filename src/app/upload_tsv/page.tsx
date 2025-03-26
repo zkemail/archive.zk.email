@@ -2,10 +2,10 @@
 
 import { axiosErrorMessage, load_domains_and_selectors_from_tsv } from "@/lib/utils";
 import React from "react";
-import { LogConsole, LogRecord } from "@/components/LogConsole";
+import { LogConsole, type LogRecord } from "@/components/LogConsole";
 import axios from "axios";
 import { useSession } from "next-auth/react";
-import { AddDspRequest, AddDspResponse } from "../api/dsp/route";
+import type { AddDspRequest, AddDspResponse } from "../api/dsp/route";
 
 export default function Page() {
 
@@ -44,12 +44,12 @@ export default function Page() {
 		if (!selectedFile) {
 			throw "no file selected";
 		}
-		let fileContent = await readFile(selectedFile);
+		const fileContent = await readFile(selectedFile);
 		if (!fileContent || (typeof fileContent !== "string")) {
 			throw "error: invalid file content:" + fileContent;
 		}
 
-		let domainSelectorPairs = load_domains_and_selectors_from_tsv(fileContent);
+		const domainSelectorPairs = load_domains_and_selectors_from_tsv(fileContent);
 
 		const addDspApiUrl = 'api/dsp';
 		logmsg(`starting upload to ${addDspApiUrl}`);
@@ -63,7 +63,7 @@ export default function Page() {
 			dsp = { domain: dsp.domain, selector: dsp.selector.split(':')[0] };
 			logmsg(`uploading (${i + 1}/${domainSelectorPairs.length}) ${JSON.stringify({ ...dsp, timestamp })}`);
 			try {
-				let response = await axios.post<AddDspResponse>(addDspApiUrl, dsp as AddDspRequest);
+				const response = await axios.post<AddDspResponse>(addDspApiUrl, dsp as AddDspRequest);
 				await update();
 				console.log('upsert response', response);
 				if (response.data.addResult?.added) {

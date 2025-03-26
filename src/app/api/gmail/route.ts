@@ -1,11 +1,11 @@
 import { authOptions } from "@/app/auth";
-import { DomainAndSelector, parseDkimTagList, parseEmailHeader } from "@/lib/utils";
-import { gmail_v1, google } from "googleapis";
+import { type DomainAndSelector, parseDkimTagList, parseEmailHeader } from "@/lib/utils";
+import { type gmail_v1, google } from "googleapis";
 import { getToken } from "next-auth/jwt";
 import { getServerSession } from "next-auth/next";
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
-import { AddResult, addDomainSelectorPair } from "@/lib/utils_server";
+import { type AddResult, addDomainSelectorPair } from "@/lib/utils_server";
 import { storeEmailSignature } from "@/lib/store_email_signature";
 
 async function handleMessage(
@@ -66,9 +66,9 @@ async function handleMessage(
       selector,
       internalDate
     );
-    let addResult = await addDomainSelectorPair(domain, selector, "api");
+    const addResult = await addDomainSelectorPair(domain, selector, "api");
 
-    let domainSelectorPair = { domain, selector };
+    const domainSelectorPair = { domain, selector };
     resultArray.push({
       addResult,
       domainSelectorPair,
@@ -81,7 +81,7 @@ async function handleMessage(
 type AddDspResult = {
   addResult: AddResult;
   domainSelectorPair: DomainAndSelector;
-  mailTimestamp?: String;
+  mailTimestamp?: string;
 };
 
 export type GmailResponse = {
@@ -113,15 +113,15 @@ async function handleRequest(request: NextRequest) {
 
   oauth2Client.setCredentials({ access_token });
 
-  let pageToken = request.nextUrl.searchParams.get("pageToken");
-  let gmailQuery = request.nextUrl.searchParams.get("gmailQuery");
-  let isFirstPage = !pageToken;
-  let messagesTotal = isFirstPage
+  const pageToken = request.nextUrl.searchParams.get("pageToken");
+  const gmailQuery = request.nextUrl.searchParams.get("gmailQuery");
+  const isFirstPage = !pageToken;
+  const messagesTotal = isFirstPage
     ? (await gmail.users.getProfile({ userId: "me" })).data.messagesTotal
     : null;
-  let messageTotalParam = messagesTotal ? { messagesTotal } : {};
+  const messageTotalParam = messagesTotal ? { messagesTotal } : {};
 
-  let listParams: any = {
+  const listParams: any = {
     userId: "me",
     maxResults: 10,
   };
@@ -134,15 +134,15 @@ async function handleRequest(request: NextRequest) {
     listParams.pageToken = pageToken;
   }
 
-  let listResults = await gmail.users.messages.list(listParams);
+  const listResults = await gmail.users.messages.list(listParams);
 
   console.log("listResults", listResults);
 
-  let messages = listResults?.data?.messages || [];
+  const messages = listResults?.data?.messages || [];
   console.log("messages", messages);
-  let addDspResults: AddDspResult[] = [];
+  const addDspResults: AddDspResult[] = [];
   console.log(`handling ${messages.length} messages`);
-  for (let message of messages) {
+  for (const message of messages) {
     if (!message.id) {
       console.log(`no messageId for message`, message);
       continue;
@@ -153,9 +153,9 @@ async function handleRequest(request: NextRequest) {
       console.log(`error handling message ${message.id}`, e);
     }
   }
-  let nextPageToken = listResults.data.nextPageToken || null;
-  let messagesProcessed = messages.length;
-  let response: GmailResponse = {
+  const nextPageToken = listResults.data.nextPageToken || null;
+  const messagesProcessed = messages.length;
+  const response: GmailResponse = {
     addDspResults,
     nextPageToken,
     messagesProcessed,

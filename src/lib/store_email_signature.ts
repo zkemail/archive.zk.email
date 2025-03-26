@@ -14,9 +14,9 @@ async function hexdigest(data: string, hashfn: string) {
 }
 
 async function generateHashFromHeaders(signedHeaders: string, headerStrings: string[], headerCanonicalizationAlgorithm: string) {
-	let signedHeadersArray = signedHeaders.split(':');
-	let signedData = processHeader(headerStrings, signedHeadersArray, headerCanonicalizationAlgorithm);
-	let headerHash = await hexdigest(signedData, 'sha256');
+	const signedHeadersArray = signedHeaders.split(':');
+	const signedData = processHeader(headerStrings, signedHeadersArray, headerCanonicalizationAlgorithm);
+	const headerHash = await hexdigest(signedData, 'sha256');
 	return headerHash;
 }
 
@@ -34,7 +34,7 @@ export async function storeEmailSignature(
     return;
   }
 
-	let signedHeaders = tags.h;
+	const signedHeaders = tags.h;
 	if (!signedHeaders) {
 		console.log(`warning: required h= tag missing, skipping`);
 		return;
@@ -50,7 +50,7 @@ export async function storeEmailSignature(
 	dkimSignature = Buffer.from(dkimSignature, 'base64').toString('base64');
 
 	// c is optional, where the default is "simple/simple"
-	let headerCanonicalizationAlgorithm = tags.c ? tags.c.split('/')[0] : 'simple';
+	const headerCanonicalizationAlgorithm = tags.c ? tags.c.split('/')[0] : 'simple';
 
 	try {
 		// Verify DKIM signature using zk-email helpers
@@ -59,9 +59,9 @@ export async function storeEmailSignature(
 		console.error('Error verifying DKIM signature:', error);
 	}
 	// Generate header hash using our existing function
-	let headerHash = await generateHashFromHeaders(signedHeaders, headerStrings, headerCanonicalizationAlgorithm);
+	const headerHash = await generateHashFromHeaders(signedHeaders, headerStrings, headerCanonicalizationAlgorithm);
 	
-	let hashAndSignatureExists = await prisma.emailSignature.findFirst({ 
+	const hashAndSignatureExists = await prisma.emailSignature.findFirst({ 
 		where: { headerHash, dkimSignature } 
 	});
 	

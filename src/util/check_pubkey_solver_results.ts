@@ -5,7 +5,7 @@ import { readFileSync } from "node:fs";
 
 
 export async function findKnownKeys(domain: string, selector: string) {
-	let records = await prisma.dkimRecord.findMany({
+	const records = await prisma.dkimRecord.findMany({
 		where: {
 			domainSelectorPair: {
 				AND: [
@@ -28,8 +28,8 @@ export async function findKnownKeys(domain: string, selector: string) {
 			domainSelectorPair: true
 		}
 	});
-	let result = [];
-	for (let record of records) {
+	const result = [];
+	for (const record of records) {
 		const p = parseDkimTagList(record.value).p;
 		if (p) {
 			result.push(p);
@@ -58,10 +58,10 @@ type DspToKeysMap = {
 
 async function main() {
 	console.log('reading DSPs from stdin');
-	let previouslyUnseenKeysFound: [string, string, string, string][] = [];
-	let solvedKeysNotMatchingArchive: [string, string, string, string][] = [];
-	let solvedKeysMatchingArchive: [string, string, string, string][] = [];
-	let notSolved: [string, string, string][] = [];
+	const previouslyUnseenKeysFound: [string, string, string, string][] = [];
+	const solvedKeysNotMatchingArchive: [string, string, string, string][] = [];
+	const solvedKeysMatchingArchive: [string, string, string, string][] = [];
+	const notSolved: [string, string, string][] = [];
 
 	const args = process.argv.slice(2);
 	if (args.length == 1) {
@@ -69,7 +69,7 @@ async function main() {
 		console.log(`reading DSPs from file: ${filename}`);
 		const fileContent = readFileSync(filename, 'utf8');
 		const lines = fileContent.split('\n').map(line => line.trim()).filter(line => line);
-		let dspToKeysMap: DspToKeysMap = {};
+		const dspToKeysMap: DspToKeysMap = {};
 		for (let i = 0; i < lines.length; i++) {
 			const line = lines[i];
 			const [dsp_index, domain, selector, solved_key_tvl, source1, source2] = line.split('\t');
@@ -79,12 +79,12 @@ async function main() {
 			dspToKeysMap[dsp_index].solve_results.push({ tvl: solved_key_tvl, sources: [source1, source2] });
 		}
 
-		for (let dsp_index in dspToKeysMap) {
+		for (const dsp_index in dspToKeysMap) {
 
 			const { domain, selector, solve_results } = dspToKeysMap[dsp_index];
 			const sources = solve_results.map(key => key.sources).join(', ');
-			let validKeys = []
-			for (let r of solve_results) {
+			const validKeys = []
+			for (const r of solve_results) {
 				if (r.tvl !== '-') {
 					validKeys.push(r);
 				}
@@ -128,23 +128,23 @@ async function main() {
 
 		console.log();
 		console.log(`solved keys for which there are no keys in the archive for the corresponding DSP: ${previouslyUnseenKeysFound.length}`);
-		for (let [domain, selector, result, sources] of previouslyUnseenKeysFound) {
+		for (const [domain, selector, result, sources] of previouslyUnseenKeysFound) {
 			console.log(`${domain}\t${selector}\t${result}\t${sources}`);
 		}
 		console.log();
 		console.log(`solved keys which match a key in the archive: ${solvedKeysMatchingArchive.length}`);
-		for (let [domain, selector, key, sources] of solvedKeysMatchingArchive) {
+		for (const [domain, selector, key, sources] of solvedKeysMatchingArchive) {
 			console.log(`${domain}\t${selector}\t${key}\t${sources}`);
 		}
 		console.log();
 		console.log(`solved keys for which there are keys in the archive for the corresponding DSP, but no match: ${solvedKeysNotMatchingArchive.length}`);
-		for (let [domain, selector, result, sources] of solvedKeysNotMatchingArchive) {
+		for (const [domain, selector, result, sources] of solvedKeysNotMatchingArchive) {
 			console.log(`${domain}\t${selector}\t${result}\t${sources}`);
 		}
 
 		console.log();
 		console.log(`DSPs for which no keys were solved: ${notSolved.length}`);
-		for (let [domain, selector, sources] of notSolved) {
+		for (const [domain, selector, sources] of notSolved) {
 			console.log(`${domain}\t${selector}\t${sources}`);
 		}
 	}

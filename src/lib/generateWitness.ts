@@ -1,4 +1,4 @@
-import { DkimRecord, DomainSelectorPair } from "@prisma/client";
+import type { DkimRecord, DomainSelectorPair } from "@prisma/client";
 import { getCanonicalJWKRecordString, getCanonicalRecordString, jwkSet } from "./utils";
 import { WitnessClient } from "@witnessco/client";
 import { prisma, recordToString } from "./db";
@@ -21,7 +21,7 @@ export async function generateWitness(
   dsp: DomainSelectorPair,
   dkimRecord: DkimRecord
 ) {
-  let canonicalRecordString = getCanonicalRecordString(dsp, dkimRecord.value);
+  const canonicalRecordString = getCanonicalRecordString(dsp, dkimRecord.value);
   const witness = new WitnessClient(process.env.WITNESS_API_KEY);
   const leafHash = witness.hash(canonicalRecordString);
   let timestamp;

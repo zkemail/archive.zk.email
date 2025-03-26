@@ -1,14 +1,14 @@
-import { DomainSelectorPair, Prisma } from "@prisma/client";
+import { type DomainSelectorPair, Prisma } from "@prisma/client";
 import { createDkimRecord, dspToString, prisma, recordToString, updateDspTimestamp } from "./db";
 import { generateWitness } from "./generateWitness";
-import { DnsDkimFetchResult, DspSourceIdentifier, kValueToKeyType, parseDkimTagList } from "./utils";
+import { type DnsDkimFetchResult, type DspSourceIdentifier, kValueToKeyType, parseDkimTagList } from "./utils";
 import dns from 'dns';
-import { KeyType } from "@prisma/client";
+import type { KeyType } from "@prisma/client";
 import { execFileSync } from "node:child_process";
 
 async function refreshKeysFromDns(dsp: DomainSelectorPair) {
-	let now = new Date();
-	let oneHourAgo = new Date(now.getTime() - 1000 * 60 * 60);
+	const now = new Date();
+	const oneHourAgo = new Date(now.getTime() - 1000 * 60 * 60);
 	if (!dsp.lastRecordUpdate || dsp.lastRecordUpdate < oneHourAgo) {
 		console.log(`refresh key for ${dspToString(dsp)}`);
 		await fetchAndStoreDkimDnsRecord(dsp);
@@ -30,7 +30,7 @@ export async function addDomainSelectorPair(domain: string, selector: string, so
 	selector = selector.toLowerCase();
 
 	// check if record exists
-	let dsp = await prisma.domainSelectorPair.findFirst({
+	const dsp = await prisma.domainSelectorPair.findFirst({
 		where: {
 			domain: {
 				equals: domain,
@@ -47,14 +47,14 @@ export async function addDomainSelectorPair(domain: string, selector: string, so
 		await refreshKeysFromDns(dsp);
 		return { already_in_db: true, added: false };
 	}
-	let records = await fetchDkimDnsRecord(domain, selector);
+	const records = await fetchDkimDnsRecord(domain, selector);
 	if (records.length === 0) {
 		console.log(`no dkim dns record found for ${selector}, ${domain}`);
 		return { already_in_db: false, added: false };
 	}
 	console.log(`found ${records.length} dkim dns records for ${selector}, ${domain}, adding DSP and records`);
 
-	let newDsp = await prisma.domainSelectorPair.create({
+	const newDsp = await prisma.domainSelectorPair.create({
 		data: {
 			domain,
 			selector,
@@ -137,8 +137,8 @@ export async function fetchDkimDnsRecord(domain: string, selector: string): Prom
 		return [];
 	}
 	console.log(`found: ${records.length} records for ${qname}`);
-	let result = [];
-	for (let record of records) {
+	const result = [];
+	for (const record of records) {
 		console.log(`record: ${record}`);
 		console.log(`found dns record for ${qname}`);
 		try {
@@ -167,8 +167,8 @@ export async function fetchDkimDnsRecord(domain: string, selector: string): Prom
  */
 export async function fetchAndStoreDkimDnsRecord(dsp: DomainSelectorPair) {
 	console.log(`fetching ${dsp.selector}._domainkey.${dsp.domain} from dns`);
-	let dnsRecords = await fetchDkimDnsRecord(dsp.domain, dsp.selector);
-	for (let dnsRecord of dnsRecords) {
+	const dnsRecords = await fetchDkimDnsRecord(dsp.domain, dsp.selector);
+	for (const dnsRecord of dnsRecords) {
 		let dbRecord = await prisma.dkimRecord.findFirst({
 			where: {
 				domainSelectorPair: dsp,
