@@ -63,6 +63,10 @@ async def has_known_keys(prisma: Prisma, dsp: Dsp, dspsWithKnownKeys: set[Dsp]) 
 async def validate_signature(keyData: str, sig: EmailSignature) -> bool:
     try:
         # Try a few different approaches to verify the signature
+        logging.info(f'validating signature {sig.id} with key {keyData}')
+        # Strip p= from keyData if it exists
+        if keyData.startswith('p='):
+            keyData = keyData[2:]
         rsa_key = RSA.import_key(binascii.a2b_base64(keyData))
         verifier = PKCS1_v1_5.new(rsa_key)
         sig_bytes = binascii.a2b_base64(sig.dkimSignature)
@@ -85,8 +89,8 @@ async def validate_signature(keyData: str, sig: EmailSignature) -> bool:
             return True
         logging.info(f'signature {sig.id} did not validate with pkcs1 padding')
         return False
-    except:
-        logging.info(f'signature {sig.id} errored with pkcs1 padding')
+    except Exception as e:
+        logging.info(f'signature {sig.id} errored with pkcs1 padding: {e}')
         return False
 
 
@@ -152,7 +156,6 @@ async def check_adjacent_sigs(dsp: Dsp, sig: EmailSignature, prisma: Prisma) -> 
                 logging.info(f'signature {sig.id} within time period validates with key {record.keyData} found from {record.source}')
             else:
                 logging.info(f'signature {sig.id} does not validate with key {record.keyData} found from {record.source}, something is wrong')
-                sys.exit(0)
     return False
 
 async def find_key_for_signature_pair(dsp: Dsp, sig1: EmailSignature, sig2: EmailSignature, prisma: Prisma):
@@ -250,15 +253,14 @@ async def check_for_matching_key_period(dsp: Dsp, sig1: EmailSignature, sig2: Em
 					# Validate signatures and exit for testing
 					try:
 						logging.info(f"Doublechecking correct signature {sig1.id} validates with key {keyBase64}")	
-						await validate_signature(key["value"], sig1)
+						validated1 = await validate_signature(key["value"], sig1)
 						logging.info(f"Doublechecking correct signature {sig2.id} validates with key {keyBase64}")
-						await validate_signature(key["value"], sig2)
-						logging.info("Signature validation successful")
+						validated2 = await validate_signature(key["value"], sig2)
+						logging.info(f"Signature validation successful? {validated1} and {validated2}")
 					except Exception as e:
 						logging.error(f"Signature validation failed: {e}")
 					finally:
 						logging.info("Exiting after signature validation test")
-						sys.exit(0)
 					# Skip GCD calculation since we found a valid key period
 					return False
          
@@ -269,6 +271,42 @@ async def check_for_matching_key_period(dsp: Dsp, sig1: EmailSignature, sig2: Em
 		elif not timestamp_1_covered and not timestamp_2_covered:
 			logging.info(f"No matching key period for either key in {dsp.domain}:{dsp.selector} from timestamps {sig1.timestamp} and {sig2.timestamp}")
 		return True
+
+async def process_signature_pair(dsp: Dsp, sig1: EmailSignature, sig2: EmailSignature, prisma: Prisma):
+	"""
+	Process a pair of email signatures to find a public key.
+	
+	Args:
+		dsp (Dsp): Domain/selector pair object containing domain and selector
+		sig1 (EmailSignature): First email signature to check
+		sig2 (EmailSignature): Second email signature to check
+		prisma (Prisma): Prisma client instance
+
+	Returns:
+		bool: True if GCD calculation proceeded (no matching key period found),
+						False if matching key period was found and GCD can be skipped
+	"""
+	# Check if the pair has already been processed
+	pairGcdResult = await prisma.emailpairgcdresult.find_first(
+			where={'OR': [
+					{
+						'emailSignatureA_id': sig1.id,
+						'emailSignatureB_id': sig2.id
+				},
+				{
+						'emailSignatureA_id': sig2.id,
+						'emailSignatureB_id': sig1.id
+				},
+		]})
+	if pairGcdResult:
+		logging.info(f"EmailPairGcdResult already exists for signatures {sig1.id} and {sig2.id} at timestamp {pairGcdResult.timestamp} and success status {pairGcdResult.foundGcd}")
+		return False
+	# logging.info(f"might theoretically run gcd solver for {dsp} and timestamps {sig1.timestamp} and {sig2.timestamp}")
+	shouldFindMatch = await check_for_matching_key_period(dsp, sig1, sig2)
+	if shouldFindMatch:
+		await find_key_for_signature_pair(dsp, sig1, sig2, prisma)
+		return True	
+	return False
 
 async def main():
 	logging.root.name = os.path.basename(__file__)
@@ -293,7 +331,8 @@ async def main():
 	
 	prisma = Prisma()
 	await prisma.connect()
-	domain_filter = os.environ.get('DOMAIN_FILTER') if os.environ.get('DOMAIN_FILTER') else "binance.com"
+	multidomain_filter = ["coinbase.com", "binance.com", "kraken.com", "bybit.com", "okx.com", "bitfinex.com", "bitstamp.net", "bitstamp.eu", "bitstamp.com", "uber.com", "amazon.ca", "amazon.co.jp", "amazon.com", "apple.com"]
+	domain_filter = os.environ.get('DOMAIN_FILTER') if os.environ.get('DOMAIN_FILTER') else None
 	if domain_filter:
 		email_signatures = await prisma.emailsignature.find_many(where={'domain': domain_filter})
 		logging.info(f"Filtering signatures for domain: {domain_filter}")
@@ -302,15 +341,19 @@ async def main():
   
 	dspToSigs: DspToSigs = {}
 	dspsWithKnownKeys: set[Dsp] = set()
-	logging.info(f"filtering out email signatures for which we already have keys")
+	logging.info(f"Deduplicate hash/signature pairs and sort by domain/selector")
+  # Only keep domains that contain a string in the multidomain_filter as a substring
 	for s in email_signatures:
 		dsp = Dsp(domain=s.domain, selector=s.selector)
-		if dspToSigs.get(dsp) is None:
-			dspToSigs[dsp] = []
-		dspToSigs[dsp].append(s)
+		if any(domain in s.domain for domain in multidomain_filter):
+			if dspToSigs.get(dsp) is None:
+				dspToSigs[dsp] = []
+			dspToSigs[dsp].append(s)
+	logging.info(f"{len(dspToSigs)} unique domain/selector pairs")
 
 	with tqdm(total=len(dspToSigs), desc="Searching for public keys within unique domain/selector pairs") as pbar:
 		for dsp, sigs in dspToSigs.items():
+			# TODO: Fix this to only filter by that timestamp range
 			if await has_known_keys(prisma, dsp, dspsWithKnownKeys):
 				pbar.set_postfix_str(f"Keys known for {dsp.domain} {dsp.selector}")
 			else:
@@ -323,25 +366,14 @@ async def main():
 				# Go through consecutive pairs
 				for i in range(len(sorted_sigs)-1):
 					sig1, sig2 = sorted_sigs[i], sorted_sigs[i+1]
-					# Check if the pair has already been processed
-					pairGcdResult = await prisma.emailpairgcdresult.find_first(
-							where={'OR': [
-									{
-										'emailSignatureA_id': sig1.id,
-										'emailSignatureB_id': sig2.id
-								},
-								{
-										'emailSignatureA_id': sig2.id,
-										'emailSignatureB_id': sig1.id
-								},
-						]})
-					if pairGcdResult:
-						logging.info(f"EmailPairGcdResult already exists for signatures {sig1.id} and {sig2.id} at timestamp {pairGcdResult.timestamp} and success status {pairGcdResult.foundGcd}")
-						continue
-					# logging.info(f"might theoretically run gcd solver for {dsp} and timestamps {sig1.timestamp} and {sig2.timestamp}")
-					shouldFindMatch = await check_for_matching_key_period(dsp, sig1, sig2)
-					if shouldFindMatch:
-						await find_key_for_signature_pair(dsp, sig1, sig2, prisma)
+					await process_signature_pair(dsp, sig2, sig1, prisma)
+				
+				# This is kind of a hack to ensure that when our header hash algorithm was wrong,
+				# we still check against those signatures by maybe skipping them to test the right one
+				# for i in range(len(sorted_sigs)-2):
+				# 	sig1, sig2 = sorted_sigs[i], sorted_sigs[i+2]
+				# 	await process_signature_pair(dsp, sig1, sig2, prisma)
+
 			else:
 				logging.info(f"less than 2 signatures found for {dsp}")
 
