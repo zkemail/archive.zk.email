@@ -83,7 +83,7 @@ async function main() {
 
 			const { domain, selector, solve_results } = dspToKeysMap[dsp_index];
 			const sources = solve_results.map(key => key.sources).join(', ');
-			const validKeys = []
+			const validKeys: SolveResult[] = []
 			for (const r of solve_results) {
 				if (r.tvl !== '-') {
 					validKeys.push(r);
