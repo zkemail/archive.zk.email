@@ -13,7 +13,8 @@
 		"preinstall": "npx only-allow pnpm",
 		"check-types": "tsc --noEmit",
 		"lint": "next lint",
-		"test": "vitest run"
+		"test": "vitest run",
+		"start-cron": "tsx src/util/cron.ts"
 	},
 	"prisma": {
 		"seed": "tsx prisma/seed.ts"
@@ -22,7 +23,7 @@
 		"@emotion/react": "^11.11.4",
 		"@emotion/styled": "^11.11.5",
 		"@mui/material": "^5.15.19",
-		"@prisma/client": "5.11.0",
+		"@prisma/client": "5.17.0",
 		"@witnessco/client": "^0.4.2",
 		"@zk-email/helpers": "^6.4.2",
 		"axios": "^1.7.2",
@@ -32,6 +33,7 @@
 		"moment": "^2.30.1",
 		"next": "14.2.3",
 		"next-auth": "^4.24.7",
+		"node-cron": "^3.0.3",
 		"rate-limiter-flexible": "^5.0.3",
 		"react": "^18.3.1",
 		"react-dom": "^18.3.1",
@@ -44,13 +46,14 @@
 		"@biomejs/biome": "1.9.4",
 		"@types/lodash": "^4.17.10",
 		"@types/node": "^20.12.12",
+		"@types/node-cron": "^3.0.11",
 		"@types/react": "^18.3.3",
 		"@types/react-dom": "^18.3.0",
 		"@types/swagger-ui-react": "^4.18.3",
 		"autoprefixer": "^10.4.19",
 		"dkim": "^0.8.0",
 		"postcss": "^8.4.38",
-		"prisma": "5.11.0",
+		"prisma": "5.17.0",
 		"swagger-ui-react": "^5.17.14",
 		"tsx": "^4.11.0",
 		"typescript": "^5.4.5",
