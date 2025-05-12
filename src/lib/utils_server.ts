@@ -133,8 +133,15 @@ export async function fetchDkimDnsRecord(domain: string, selector: string): Prom
 		records = (await resolver.resolve(qname, 'TXT')).map(record => record.join(''));
 	}
 	catch (error) {
-		console.log(`error fetching ${qname}: ${error}`);
-		return [];
+		try {
+			console.log(`[DNS] System DNS failed for ${qname}: ${error}. Falling back to `);
+			resolver.setServers(['8.8.8.8', '8.8.4.4', '1.1.1.1', '1.0.0.1']);
+			records = (await resolver.resolve(qname, 'TXT')).map(record => record.join(''));
+		}
+		catch (error) {
+			console.log(`[DNS] All DNS servers failed for ${qname}: ${error}.`);
+			return [];
+		}	
 	}
 	console.log(`found: ${records.length} records for ${qname}`);
 	const result = [];
