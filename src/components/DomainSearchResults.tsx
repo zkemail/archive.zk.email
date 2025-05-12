@@ -4,8 +4,9 @@ import { findKeysPaginated, findKeysPaginatedModifiedQuery } from "@/app/actions
 import Loading from "@/app/loading";
 import type { RecordWithSelector } from "@/lib/db";
 import { parseDkimTagList } from "@/lib/utils";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, useRef } from "react";
 import { DomainSearchResultsDisplay } from "./DomainSearchResultsDisplay";
+import { io } from "socket.io-client";
 
 interface DomainSearchResultsProps {
   domainQuery: string | undefined;
@@ -48,29 +49,141 @@ function DomainSearchResults({ domainQuery, isLoading, setIsLoading }: DomainSea
   const [records, setRecords] = useState<Map<number, RecordWithSelector>>(new Map());
   const [cursor, setCursor] = useState<number | null>(null);
   const [flag, setFlag] = useState<flagState>("normal");
+  const [socket, setSocket] = useState<any>(null);
+  const [fetchMessage, setFetchMessage] = useState<string | null>(null);
+  const nextBruteForceIdRef = useRef<number>(0);
 
   const loadRecords = useCallback(async (domainQuery: string | undefined) => {
+    nextBruteForceIdRef.current = 0;
     const { filteredRecords, newFlag } = await fetchDomainResults(domainQuery, null, "normal");
-
-    if (filteredRecords.length === 0) {
+    if (filteredRecords.length === 0 && domainQuery !== undefined) {
       setFlag("stop");
       setIsLoading(false);
-      return;
+      setFetchMessage("Failed to fetch from archive. Brute Forcing the domain against common selectors ...");
+      
+      const bruteServerUrl = process.env.BRUTE_SELECTOR_SERVER_URL;
+      if (bruteServerUrl) {
+        const socket = io(bruteServerUrl);
+        setSocket(socket);
+        socket.on("connect", () => {
+          // console.log("connected to webscoket")
+          socket.emit("bruteDomain", { domain: domainQuery });
+        });
+
+        socket.on("bruteDomainResponse", (data: any) => {
+          if (data.value) {
+            const uniqueId = nextBruteForceIdRef.current++; 
+            const newDomainSelectorPair = {
+              id: uniqueId,
+              domain: data.domain,
+              selector: data.selector,
+              lastRecordUpdate: new Date(),
+              sourceIdentifier: 'brute-forced',
+            };
+            const newRecord: RecordWithSelector = {
+              id: uniqueId,
+              domainSelectorPairId: uniqueId,
+              value: data.value,
+              provenanceVerified: false,
+              source: 'brute-forced',
+              firstSeenAt: new Date(),
+              lastSeenAt: new Date(),
+              keyData: null,
+              keyType: null,
+              domainSelectorPair: newDomainSelectorPair,
+            };
+            
+            setRecords((prevRecords) => {
+              const updatedRecords = new Map(prevRecords);
+              updatedRecords.set(uniqueId, newRecord);
+              return updatedRecords;
+            });
+            
+            setIsLoading(false);
+            setFlag("stop");
+            setCursor(uniqueId);
+            setFetchMessage(null);
+          }
+        });
+
+        socket.on("processingComplete", (data) => {
+          setCursor(null);
+          setFetchMessage(null);
+          socket.disconnect();
+        });
+
+        socket.on("connect_error", (error: any) => {
+          console.error("Socket.IO connection error:", error);
+          socket.close();
+
+          fetch(`${bruteServerUrl}/bruteDomain?domain=${domainQuery}`)
+            .then((response) => response.json())
+            .then((data: any) => {
+              
+              setRecords((prevRecords) => {
+                const newRecordsMap = new Map(prevRecords);
+                
+                data.forEach((record: { domain: string; selector: string; value: string }) => {
+                  if (record.value) {
+                    const uniqueId = nextBruteForceIdRef.current++;
+                    
+                    const newDomainSelectorPair = {
+                      id: uniqueId,
+                      domain: record.domain,
+                      selector: record.selector,
+                      lastRecordUpdate: new Date(),
+                      sourceIdentifier: 'brute-forced',
+                    };
+                    
+                    const newRecord: RecordWithSelector = {
+                      id: uniqueId,
+                      domainSelectorPairId: uniqueId,
+                      value: record.value,
+                      provenanceVerified: false,
+                      source: 'brute-forced',
+                      firstSeenAt: new Date(),
+                      lastSeenAt: new Date(),
+                      keyData: null,
+                      keyType: null,
+                      domainSelectorPair: newDomainSelectorPair,
+                    };
+                    
+                    newRecordsMap.set(uniqueId, newRecord);
+                  }
+                });
+                
+                return newRecordsMap;
+              });
+              
+              setIsLoading(false);
+              setFetchMessage(null);
+            })
+            .catch((err) => {
+              setFetchMessage("Brute-force attempt failed. No results found.");
+            });
+        });
+
+        socket.on("disconnect", () => {
+          setIsLoading(false);
+          setSocket(null);
+        });
+      }
+    } else {
+      const newRecordsMap = new Map(records);
+      filteredRecords.forEach((record) => newRecordsMap.set(record.id, record));
+      setFlag(newFlag);
+      setRecords(newRecordsMap);
+      setCursor(filteredRecords[filteredRecords.length - 1]?.id);
+      setIsLoading(false);
+      setFetchMessage(null);
     }
-
-    const newRecordsMap = new Map(records);
-    filteredRecords.forEach((record) => newRecordsMap.set(record.id, record));
-
-    setFlag(newFlag);
-    setRecords(newRecordsMap);
-    setCursor(filteredRecords[filteredRecords.length - 1]?.id);
-    setIsLoading(false);
   }, []);
 
   useEffect(() => {
     setIsLoading(true);
+    setRecords(new Map());
     loadRecords(domainQuery);
-  }, [domainQuery]);
+  }, [domainQuery, loadRecords]);
 
   useEffect(() => {
     loadMore();
@@ -84,14 +197,12 @@ function DomainSearchResults({ domainQuery, isLoading, setIsLoading }: DomainSea
     const lastCursor = filteredRecords[filteredRecords.length - 1]?.id;
 
     if (filteredRecords.length === 0 || lastCursor === cursor) {
-      // If no new records are found, stop further loading
       setCursor(null);
       setFlag((oldFlag) => (oldFlag === "normal" ? "modified" : "stop"));
       return;
     }
 
     const updatedRecordsMap = new Map(records);
-
     filteredRecords.forEach((record) => {
       if (!updatedRecordsMap.has(record.id)) {
         updatedRecordsMap.set(record.id, record);
@@ -102,10 +213,21 @@ function DomainSearchResults({ domainQuery, isLoading, setIsLoading }: DomainSea
     setRecords(updatedRecordsMap);
   }
 
+  useEffect(() => {
+    return () => {
+      if (socket) {
+        socket.disconnect();
+      }
+    };
+  }, [socket]);
+
   return isLoading ? (
     <Loading />
   ) : (
-    <DomainSearchResultsDisplay records={records} domainQuery={domainQuery} loadMore={loadMore} cursor={cursor} />
+    <>
+      {fetchMessage && <div className="alert alert-warning">{fetchMessage}</div>}
+      <DomainSearchResultsDisplay records={records} domainQuery={domainQuery} loadMore={loadMore} cursor={cursor} />
+    </>
   );
 }
 
