@@ -81,6 +81,28 @@ paths:
           description: Invalid input
         '500':
           description: Unexpected error
+  /jwk_set:
+    get:
+      tags:
+        - jwk
+      summary: Get JSON Web Key Set records
+      description: >
+        Returns all stored JSON Web Key Set (JWKS) records including their x509 certificates and verification status.
+        The endpoint is rate limited to 100 requests per second.
+      operationId: getJwkSet
+      responses:
+        '200':
+          description: Successful operation
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/JwkSetRecord'
+        '429':
+          description: Rate limit exceeded
+        '500':
+          description: Unexpected error
 components:
   schemas:
     DkimKey:
@@ -126,3 +148,48 @@ components:
           type: string
           examples:
             - s1
+    JwkSetRecord:
+      type: object
+      required:
+        - jwks
+        - x509Certificate
+        - provenanceVerified
+      properties:
+        jwks:
+          type: object
+          description: JSON Web Key Set
+          properties:
+            keys:
+              type: array
+              items:
+                type: object
+                properties:
+                  kty:
+                    type: string
+                    example: "RSA"
+                  use:
+                    type: string
+                    example: "sig"
+                  kid:
+                    type: string
+                    example: "2023-01-01"
+                  alg:
+                    type: string
+                    example: "RS256"
+                  n:
+                    type: string
+                    example: "modulus_value"
+                  e:
+                    type: string
+                    example: "AQAB"
+        x509Certificate:
+          type: string
+          description: PEM formatted x509 certificate
+          example: |
+            -----BEGIN CERTIFICATE-----
+            MIIE...
+            -----END CERTIFICATE-----
+        provenanceVerified:
+          type: boolean
+          description: Whether the provenance of the keys has been verified
+          example: false

@@ -2,21 +2,56 @@
 
 import DomainSearchResults from "@/components/DomainSearchResults";
 import { SearchInput } from "@/components/SearchInput";
-import Link from "next/link";
-import { useState } from "react";
+import { JWKArchiveDisplayList } from "@/components/JWKArchiveDisplay";
+import { useRouter, useSearchParams } from "next/navigation";
+import { useState, useEffect } from "react";
 
-export default function Home({ searchParams }: { searchParams: { [key: string]: string | string[] | undefined } }) {
-  const domainQuery = searchParams?.domain?.toString();
+export default function Home() {
+  const searchParams = useSearchParams();
+  const router = useRouter();
+
+  const domainQuery = searchParams.get("domain") || "";
+  const archiveParam = searchParams.get("archive") as "dkim" | "jwk" | null;
+  const [selectedArchive, setSelectedArchive] = useState<"dkim" | "jwk">(archiveParam || "dkim");
   const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    if (!archiveParam) {
+      router.replace(`?archive=${selectedArchive}`, { scroll: false });
+    }
+  }, []);
+
+  const handleArchiveChange = (event: React.ChangeEvent<HTMLSelectElement>) => {
+    const newArchive = event.target.value as "dkim" | "jwk";
+    setSelectedArchive(newArchive);
+    router.push(`?archive=${newArchive}`, { scroll: false });
+  };
+
   return (
     <div style={{ display: "flex", minHeight: "100vh", flexDirection: "column", alignItems: "center" }}>
-      <h2 style={{ padding: "2rem" }}>
-        <Link href="/" className="defaultcolor" prefetch={false}>
-          DKIM Archive
-        </Link>
-      </h2>
-      <SearchInput domainQuery={domainQuery} setIsLoading={setIsLoading} />
-      <DomainSearchResults domainQuery={domainQuery} isLoading={isLoading} setIsLoading={setIsLoading} />
+      <div style={{ paddingTop: "8rem", paddingBottom: "2rem" }}>
+        <select
+          id="archive-select"
+          value={selectedArchive}
+          onChange={handleArchiveChange}
+          style={{ padding: "0.5rem", fontSize: "1rem" }}
+        >
+          <option value="dkim">DKIM Archive</option>
+          <option value="jwk">Google JWKs Archive</option>
+        </select>
+      </div>
+
+      {selectedArchive === 'dkim' ? (
+        <>
+          <SearchInput domainQuery={domainQuery} setIsLoading={setIsLoading} />
+          <DomainSearchResults domainQuery={domainQuery} isLoading={isLoading} setIsLoading={setIsLoading} />
+        </>
+      ) : (
+        <>
+          <JWKArchiveDisplayList />
+        </>
+      )}
+
       <div style={{ textAlign: "center", marginTop: "5rem", fontSize: "0.8rem" }}>
         <hr style={{ width: "50%", margin: "1rem auto", borderTop: "1px solid black" }} />
         <div>
