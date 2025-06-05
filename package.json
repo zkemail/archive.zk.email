@@ -14,7 +14,13 @@
 		"check-types": "tsc --noEmit",
 		"lint": "next lint",
 		"test": "vitest run",
-		"start-cron": "tsx src/util/cron.ts"
+		"start-cron": "tsx src/util/cron.ts",
+		"infra:init": "cd terraform && terraform init",
+		"infra:plan": "cd terraform && terraform plan -var-file=./terraform.tfvars",
+		"infra:apply": "cd terraform && terraform apply -var-file=./terraform.tfvars -auto-approve",
+		"infra:destroy": "cd terraform && terraform destroy -var-file=./terraform.tfvars -auto-approve",
+		"deploy:infra": "pnpm infra:init && pnpm infra:apply",
+		"destroy:infra": "pnpm infra:destroy"
 	},
 	"prisma": {
 		"seed": "tsx prisma/seed.ts"

@@ -29,6 +29,7 @@ export async function POST(request: { json: () => any }) {
       );
     }
 
+    //TODO: validation should be done here not in python function
     // Create task payload with callback information
     const payload = {
       s1: s1.toString(),
@@ -44,18 +45,32 @@ export async function POST(request: { json: () => any }) {
     const parent = client.queuePath(PROJECT_ID, LOCATION, QUEUE_NAME);
 
     // Create the task
-    const task = {
-      httpRequest: {
-        httpMethod: 'POST' as const,
-        url: FUNCTION_URL,
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: Buffer.from(JSON.stringify(payload)),
-        oidcToken: {
-          serviceAccountEmail: SERVICE_ACCOUNT_EMAIL,
-        },
-      },
+    if (!SERVICE_ACCOUNT_EMAIL) {
+      return Response.json(
+        { error: 'TASKS_SERVICE_ACCOUNT_EMAIL environment variable not set' },
+        { status: 500 }
+      );
+    }
+
+    if (!SERVICE_ACCOUNT_EMAIL) {
+      return Response.json(
+        { error: 'TASKS_SERVICE_ACCOUNT_EMAIL environment variable not set' },
+        { status: 500 }
+      );
+    }
+
+     const task = {
+       httpRequest: {
+         httpMethod: 'POST' as const,
+         url: FUNCTION_URL,
+         headers: {
+           'Content-Type': 'application/json',
+         },
+         body: Buffer.from(JSON.stringify(payload)),
+         oidcToken: {
+           serviceAccountEmail: SERVICE_ACCOUNT_EMAIL,
+         },
+       },
       name: taskId ? `${parent}/tasks/${taskId}` : undefined,
     };
 
