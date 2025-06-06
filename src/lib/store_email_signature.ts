@@ -1,9 +1,9 @@
 import { processHeader } from "dkim";
 import { prisma } from '@/lib/db';
 import { verifyDKIMSignature } from "@zk-email/helpers/dist/dkim";
+import crypto from 'crypto';
 
-async function hexdigest(data: string, hashfn: string) {
-	const crypto = require('crypto');
+function hexdigest(data: string, hashfn: string) {
 	if (hashfn === 'sha256') {
 		return crypto.createHash('sha256').update(data).digest('hex');
 	}
@@ -13,10 +13,10 @@ async function hexdigest(data: string, hashfn: string) {
 	throw new Error(`unsupported hashfn=${hashfn}`);
 }
 
-async function generateHashFromHeaders(signedHeaders: string, headerStrings: string[], headerCanonicalizationAlgorithm: string) {
+function generateHashFromHeaders(signedHeaders: string, headerStrings: string[], headerCanonicalizationAlgorithm: string) {
 	const signedHeadersArray = signedHeaders.split(':');
 	const signedData = processHeader(headerStrings, signedHeadersArray, headerCanonicalizationAlgorithm);
-	const headerHash = await hexdigest(signedData, 'sha256');
+	const headerHash = hexdigest(signedData, 'sha256');
 	return headerHash;
 }
 
@@ -59,7 +59,7 @@ export async function storeEmailSignature(
 		console.error('Error verifying DKIM signature:', error);
 	}
 	// Generate header hash using our existing function
-	const headerHash = await generateHashFromHeaders(signedHeaders, headerStrings, headerCanonicalizationAlgorithm);
+	const headerHash = generateHashFromHeaders(signedHeaders, headerStrings, headerCanonicalizationAlgorithm);
 	
 	const hashAndSignatureExists = await prisma.emailSignature.findFirst({ 
 		where: { headerHash, dkimSignature } 
