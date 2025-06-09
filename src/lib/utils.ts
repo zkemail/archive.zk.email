@@ -2,6 +2,9 @@ import type { ReadonlyHeaders } from "next/dist/server/web/spec-extension/adapte
 import type { RateLimiterMemory } from "rate-limiter-flexible";
 import type { KeyType } from "@prisma/client";
 
+// Regex to extract DKIM-Signature header blocks
+export const DKIM_HEADER_REGEX = /^DKIM-Signature:\s*(.+?)(?=\r?\n[^ \t])/gims;
+
 export type DomainAndSelector = {
 	domain: string,
 	selector: string
@@ -380,4 +383,17 @@ export async function fetchx509Cert(): Promise<string> {
     console.error('Error fetching X.509 certificate:', error);
     return "";
   }
+}
+
+
+// -  Extract all DKIM-Signature blocks, , and return [rawHeader].  
+//   > *Note:* Multiple signatures may exist and can share the same {domain, selector}.
+export function getDkimSigsArray(rawEmail: string): string[] {
+    const blocks: string[] = [];
+    let match: RegExpExecArray | null;
+    while ((match = DKIM_HEADER_REGEX.exec(rawEmail))) {
+        const rawHeader = match[0];
+        blocks.push(rawHeader);
+    }
+    return blocks;
 }
