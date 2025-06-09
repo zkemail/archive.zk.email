@@ -408,3 +408,56 @@ export function parseDkimTagListV2(rawHeader: string): Record<string, string> {
     })
   );
 }
+
+// Function to parse DKIM header into [[header_name, header_value]] format
+// Preserves all whitespace and line endings for simple canonicalization
+// we use double array [[]] here to make the outputs compatable with canonicalization function
+// for reference :- https://datatracker.ietf.org/doc/html/rfc6376#section-3.4.1
+export function parseDkimSignature(dkimHeader: string): [[string, string]] {
+    // Find the first colon to separate header name from value
+    const colonIndex = dkimHeader.indexOf(':');
+    if (colonIndex === -1) {
+        throw new Error('Invalid header format: no colon found');
+    }
+    
+    // Extract header name (everything before the colon, trimmed)
+    const headerName = dkimHeader.substring(0, colonIndex).trim();
+    
+    // Extract header value (everything after the colon, preserving all whitespace)
+    const headerValue = dkimHeader.substring(colonIndex + 1).replace(/b\s*=\s*([^;]*)/, "b=");
+  
+    return [[headerName, headerValue]];
+}
+
+
+// Select signed header included in block hash
+// the selected signed header is selectd according to rfc:-
+// RFC 6376 - https://datatracker.ietf.org/doc/html/rfc6376#section-5.4.2
+export function selectSignedHeadersnew(
+  allHeaders: string[][],
+  wantedHeaders: string[]
+): string[][] {
+  const signHeaders: string[][] = [];
+  const lastIndex: Record<string, number> = {};
+  
+  // Process each wanted header in order
+  for (const headerName of wantedHeaders) {
+    const lowerHeaderName = headerName.toLowerCase();
+    
+    // Start scanning from the last matched position (or from end if first time) RFC 6376 section-5.4.2
+    let i = lastIndex[lowerHeaderName] ?? allHeaders.length;
+    
+    while (i > 0) {
+      i--;
+      if (allHeaders[i] && allHeaders[i][0].toLowerCase() === lowerHeaderName) {
+        signHeaders.push(allHeaders[i]);
+        break;
+      }
+    }
+    
+    // Update last index for this header name
+    lastIndex[lowerHeaderName] = i;
+  }
+
+  return signHeaders;
+}
