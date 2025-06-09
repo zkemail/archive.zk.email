@@ -397,3 +397,14 @@ export function getDkimSigsArray(rawEmail: string): string[] {
     }
     return blocks;
 }
+
+
+export function parseDkimTagListV2(rawHeader: string): Record<string, string> {
+  const unfoldedSignature = rawHeader.replace(/\r?\n\s+/g, " ").replace(/^DKIM-Signature\s*:\s*/i, "");
+  return Object.fromEntries(
+    unfoldedSignature.trim().split(";").map(part => {
+      const [k,v] = part.split("=",2).map(x => x.trim());
+      return [k, v];
+    })
+  );
+}
