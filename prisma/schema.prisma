@@ -2,10 +2,10 @@ generator client_js {
   provider = "prisma-client-js"
 }
 
-generator client_py {
-  provider             = "prisma-client-py"
-  recursive_type_depth = -1
-}
+// generator client_py {
+//   provider             = "prisma-client-py"
+//   recursive_type_depth = -1
+// }
 
 datasource db {
   provider  = "postgresql"
@@ -48,6 +48,7 @@ model EmailSignature {
   domain               String
   selector             String
   headerHash           String
+  headerHashV2         String?
   dkimSignature        String
   timestamp            DateTime?
   signingAlgorithm     String
