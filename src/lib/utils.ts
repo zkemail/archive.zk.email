@@ -1,6 +1,7 @@
 import type { ReadonlyHeaders } from "next/dist/server/web/spec-extension/adapters/headers";
 import type { RateLimiterMemory } from "rate-limiter-flexible";
 import type { KeyType } from "@prisma/client";
+import * as crypto from 'crypto';
 
 // Regex to extract DKIM-Signature header blocks
 export const DKIM_HEADER_REGEX = /^DKIM-Signature:\s*(.+?)(?=\r?\n[^ \t])/gims;
@@ -460,4 +461,81 @@ export function selectSignedHeadersnew(
   }
 
   return signHeaders;
+}
+
+/**
+ * DKIM Header Canonicalization Functions
+ * Based on RFC 6376 (formerly RFC 4871)
+ * https://datatracker.ietf.org/doc/html/rfc6376#section-3.4
+ * Supports both "simple" and "relaxed" canonicalization algorithms
+ * for email headers used in DKIM email signatures.
+ */
+export function canonicalizeHeaders( headers: any, algorithm: string) {
+    if (algorithm === 'simple') {
+        return canonicalizeHeadersSimple(headers);
+    } else if (algorithm === 'relaxed') {
+        return canonicalizeHeadersRelaxed(headers);
+    } else {
+        throw new Error(`Invalid canonicalization algorithm: ${algorithm}`);
+    }
+}
+
+
+function canonicalizeHeadersSimple(headers: [any, any][]) {
+    // RFC 6376: Simple canonicalization makes no changes to headers
+    return headers.map(([name, value]) => [name, value]);
+}
+
+// RFC 6376: relaxed canonicalization
+function canonicalizeHeadersRelaxed(headers: [any, any][]) {
+    return headers.map(([name, value]) => {
+        // 1. Convert header field names to lowercase
+        const lowerName = name.toLowerCase().trim();
+        
+        // 2. Unfold header field continuation lines (remove CRLF followed by WSP)
+        let unfoldedValue = unfoldHeaderValue(value);
+        
+        // 3. Compress sequences of WSP to single space
+        unfoldedValue = compressWhitespace(unfoldedValue);
+        
+        // 4. Remove WSP at start and end of field value
+        unfoldedValue = unfoldedValue.trim();
+        
+        // 5. Add CRLF at end
+        return [lowerName, unfoldedValue + '\r\n'];
+    });
+}
+
+function compressWhitespace(content: string) {
+    return content.replace(/[\t ]+/g, ' ');
+}
+
+function unfoldHeaderValue(content: string) {
+    // Remove CRLF followed by WSP (folding whitespace)
+    return content.replace(/\r?\n[\t ]/g, ' ');
+}
+
+
+
+// This computes a cryptographic hash of email headers using either "simple" or "relaxed" DKIM canonicalization methods.
+export function computeCanonicalizedHeaderHash(
+  hash: crypto.Hash,
+  headers: Array<Array<any>>,
+  sigHdr: Array<Array<any>>,
+  canon: string
+) {
+  
+  for (const hdr of headers) {
+    hash.update(Buffer.from(hdr[0]));
+    hash.update(Buffer.from(":",));
+    hash.update(Buffer.from(hdr[1]));
+  }
+
+  console.log("\nsigHdr[0], sigHdr[1]",sigHdr[0])
+
+  hash.update(Buffer.from(sigHdr[0][0],));
+  hash.update(Buffer.from(":",));
+  // This is because relaxed canon have \r\n at end of every header value except signature
+  if(canon == 'relaxed') hash.update(Buffer.from(sigHdr[0][1].replace(/\s+$/gm, '')));
+  else hash.update(Buffer.from(sigHdr[0][1]))
 }
