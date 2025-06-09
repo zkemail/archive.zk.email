@@ -296,6 +296,57 @@ export function parseEmailHeader(
 
   return json;
 }
+
+// Note:- This follows RFC 5322 for parsing the Email header, it keeps the white spaces and CRLF for simple/relaxed canonicalization
+export function parseEmailHeaderV2(rawEmail: { toString: () => any; }) {
+    
+    const emailContent = typeof rawEmail === 'string' ? rawEmail : rawEmail.toString();
+    
+    // Split email into headers and body at first blank line
+    const headerBodySplit = emailContent.split(/\r?\n\r?\n/);
+    const headerSection = headerBodySplit[0];
+    
+    // Split headers by lines, but handle folded headers (RFC 5322)
+    const headerLines = [];
+    const lines = headerSection.split(/(?<=\r?\n)/);
+    
+    let currentHeader = '';
+    
+    for (const line of lines) {
+        // Check if line starts with whitespace (folded header continuation)
+        if (line.match(/^[\t ]/)) {
+            // This is a continuation of the previous header
+            currentHeader += line;
+        } else {
+            // This is a new header, save the previous one
+            if (currentHeader) {
+                headerLines.push(currentHeader);
+            }
+            currentHeader = line;
+        }
+    }
+    
+    // Don't forget the last header
+    if (currentHeader) {
+        headerLines.push(currentHeader);
+    }
+    
+    // Parse each header line into [name, value] pairs
+    const headers = [];
+    
+    for (const headerLine of headerLines) {
+        const colonIndex = headerLine.indexOf(':');
+        if (colonIndex === -1) continue; // Skip malformed headers
+        
+        const name = headerLine.substring(0, colonIndex);
+        const value = headerLine.substring(colonIndex + 1); 
+
+        headers.push([name, value]);
+    }    
+    return headers;
+}
+
+
 export async function fetchJsonWebKeySet(): Promise<string> {
   try {
     const response = await fetch('https://www.googleapis.com/oauth2/v3/certs');
