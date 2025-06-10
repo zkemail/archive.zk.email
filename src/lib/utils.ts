@@ -443,7 +443,7 @@ export function selectSignedHeadersnew(
   
   // Process each wanted header in order
   for (const headerName of wantedHeaders) {
-    const lowerHeaderName = headerName.toLowerCase();
+    const lowerHeaderName = headerName.toLowerCase().trim();;
     
     // Start scanning from the last matched position (or from end if first time) RFC 6376 section-5.4.2
     let i = lastIndex[lowerHeaderName] ?? allHeaders.length;
