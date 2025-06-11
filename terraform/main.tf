@@ -138,8 +138,8 @@ resource "google_cloudfunctions2_function" "gcd_calculator" {
 
   service_config {
     max_instance_count               = 100
-    min_instance_count               = 0
-    available_memory                 = "512Mi"
+    min_instance_count               = 1
+    available_memory                 = "1Gi"
     timeout_seconds                  = 300
     max_instance_request_concurrency = 80
     available_cpu                    = "1"

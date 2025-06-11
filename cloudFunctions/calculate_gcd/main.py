@@ -114,6 +114,9 @@ def calculate_gcd(request):
             p = mpz(p_val)
             while n % p == 0 and n > p:
                 n //= p
+        print("Calculated GCD :", n);
+        # Clean up intermediate variables
+        del term1, term2
 
         print(f"Calculation completed for task {task_id}")
 
