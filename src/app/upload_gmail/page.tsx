@@ -37,7 +37,7 @@ export default function Page() {
 		if (progressState === 'Running...') {
 			uploadFromGmail(gmailQuery);
 		}
-	}, [nextPageToken, gmailQuery]);
+	}, [nextPageToken]);
 
 	if (status === "loading" && !session) {
 		return <p>loading...</p>
@@ -130,7 +130,7 @@ export default function Page() {
 					<input
 						type="date"
 						value={startDate}
-						onChange={(e) => setStartDate(formatDate(e.target.value) ?? '')}
+						onChange={(e) => setStartDate(e.target.value)}
 						placeholder="Start Date"
 						style={{ marginLeft: '0.5rem' }}
 					/>
@@ -140,7 +140,7 @@ export default function Page() {
 					<input
 						type="date"
 						value={endDate}
-						onChange={(e) => setEndDate(formatDate(e.target.value) ?? '')}
+						onChange={(e) => setEndDate(e.target.value)}
 						placeholder="End Date"
 						style={{ marginLeft: '0.5rem' }}
 					/>
@@ -160,7 +160,7 @@ export default function Page() {
 			<div>
 				{showStartButton && <button style={actionButtonStyle} onClick={() => {
 					constructGmailQuery(startDate, endDate, domain);
-					uploadFromGmail(gmailQuery);
+					
 				}}>Start</button>}
 				{showResumeButton && <button style={actionButtonStyle} onClick={() => {
 					uploadFromGmail(gmailQuery);
@@ -193,7 +193,7 @@ export default function Page() {
 		setLog(log => [...log, { message, date: new Date() }]);
 	}
 
-	function formatDate(dateString: string): string | null {
+	function formatDateForGmailQuery(dateString: string): string | null {
 		if (!dateString) return null;
 		const date = new Date(dateString);
 		if (isNaN(date.getTime())) return null; // Invalid date
@@ -204,22 +204,26 @@ export default function Page() {
 	}
 
 	function constructGmailQuery(startDate?: string, endDate?: string, domain?: string) {
-		console.log('constructGmailQuery', startDate, endDate, domain);
+		// TODO: compare the dates and show toaster to the user if it enters invalid date
+		const startDateGmail = formatDateForGmailQuery(startDate || '');
+		const endDateGmail = formatDateForGmailQuery(endDate || '');
+		console.log('constructGmailQuery', startDateGmail, endDateGmail, domain);
 		const queryParts: string[] = [];
 	
+		
 		if (startDate) {
-			queryParts.push(`after:${startDate}`);
+			queryParts.push(`after:${startDateGmail}`);
 		}
-	
+		
 		if (endDate) {
-			queryParts.push(`before:${endDate}`);
+			queryParts.push(`before:${endDateGmail}`);
 		}
-	
+		
 		if (domain) {
 			queryParts.push(`from:${domain}`);
 		}
-	
 		setGmailQuery(queryParts.join(" "));
+		uploadFromGmail(queryParts.join(" "));
 	}
 
 	async function uploadFromGmail(currentGmailQuery: string) {
