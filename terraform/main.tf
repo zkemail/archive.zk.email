@@ -38,7 +38,7 @@ resource "google_project_service" "required_apis" {
 
 # Create service account for Cloud Function
 resource "google_service_account" "function_sa" {
-  account_id   = "gcd-calculator-function-${var.environment}"
+  account_id   = "gcd-calculator-${var.environment}"
   display_name = "gcd Calculator Cloud Function Service Account"
   description  = "Service account for gcd calculator cloud function"
 }
