@@ -7,6 +7,7 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { type AddResult, addDomainSelectorPair } from "@/lib/utils_server";
 import { processAndStoreEmailSignature } from "@/lib/store_email_signature";
+import { headers } from 'next/headers';
 
 async function handleMessage(
   messageId: string,
@@ -104,8 +105,11 @@ async function handleRequest(request: NextRequest) {
   if (!access_token) {
     return NextResponse.json("Missing access_token", { status: 403 });
   }
+  const headersList = await headers();
+  const host = headersList.get('host');
+  const baseUrl = process.env.NODE_ENV === 'development' ? `http://${host}/api/auth/callback/google` : `https://${host}/api/auth/callback/google`;
   const oauth2Client = new google.auth.OAuth2(
-    process.env.GOOGLE_CLIENT_ID,
+    baseUrl,
     process.env.GOOGLE_CLIENT_SECRET,
     process.env.GOOGLE_REDIRECT_URI
   );
