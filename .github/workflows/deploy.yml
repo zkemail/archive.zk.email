@@ -90,24 +90,6 @@ jobs:
         echo "tasks_service_account_email=$(terraform output -raw TASKS_SERVICE_ACCOUNT_EMAIL)" >> $GITHUB_OUTPUT
       working-directory: ${{ env.TF_WORKING_DIR }}
 
-    - name: Comment PR
-      if: github.event_name == 'pull_request'
-      uses: actions/github-script@v7
-      with:
-        github-token: ${{ secrets.GH_PAT }}
-        script: |
-          const output = `#### Terraform Format and Style 🖌\`${{ steps.fmt.outcome }}\`
-          #### Terraform Initialization ⚙️\`${{ steps.init.outcome }}\`
-          #### Terraform Validation 🤖\`${{ steps.validate.outcome }}\`
-          #### Terraform Plan 📖\`${{ steps.plan.outcome }}\`
-          
-          github.rest.issues.createComment({
-            issue_number: context.issue.number,
-            owner: context.repo.owner,
-            repo: context.repo.repo,
-            body: output
-          })
-
   update-render:
     name: 'Update Render Environment'
     runs-on: ubuntu-latest
