@@ -1,12 +1,12 @@
 import { authOptions } from "@/app/auth";
-import { type DomainAndSelector, parseDkimTagList, parseEmailHeader } from "@/lib/utils";
+import { type DomainAndSelector, getDkimSigsArray, parseDkimTagListV2, parseEmailHeaderV2 } from "@/lib/utils";
 import { type gmail_v1, google } from "googleapis";
 import { getToken } from "next-auth/jwt";
 import { getServerSession } from "next-auth/next";
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { type AddResult, addDomainSelectorPair } from "@/lib/utils_server";
-import { storeEmailSignature } from "@/lib/store_email_signature";
+import { processAndStoreEmailSignature } from "@/lib/store_email_signature";
 
 async function handleMessage(
   messageId: string,
@@ -22,7 +22,9 @@ async function handleMessage(
   const decodedEmailRaw = Buffer.from(encodedEmailRaw!, "base64").toString(
     "utf-8"
   );
-  const headers = parseEmailHeader(decodedEmailRaw);
+
+  // Fix from here :- upto wherever you want to...
+  const headers = parseEmailHeaderV2(decodedEmailRaw);
   if (!headers) {
     throw "missing headers";
   }
@@ -34,20 +36,16 @@ async function handleMessage(
       ? internalDate
       : null;
 
-  const dkimSigs = headers["DKIM-Signature"] || [];
-  const dkimSigsArray: string[] = Array.isArray(dkimSigs)
-    ? dkimSigs
-    : [dkimSigs];
-  const headerStrings: string[] = [];
-  for (const [key, value] of Object.entries(headers)) {
-    headerStrings.push(`${key}: ${value}`);
-  }
+
+  const dkimSigsArray: string[] = getDkimSigsArray(decodedEmailRaw);
+
   for (const dkimSig of dkimSigsArray) {
     if (!dkimSig) {
       console.log("missing DKIM-Signature value", dkimSig);
       continue;
     }
-    const tags = parseDkimTagList(dkimSig);
+    const tags = parseDkimTagListV2(dkimSig);
+
     const domain = tags.d;
     if (!domain) {
       console.log("missing d tag", tags);
@@ -58,15 +56,17 @@ async function handleMessage(
       console.log("missing s tag", tags);
       continue;
     }
-    storeEmailSignature(
-      tags,
-      headerStrings,
-      decodedEmailRaw,
-      domain,
-      selector,
-      internalDate
-    );
     const addResult = await addDomainSelectorPair(domain, selector, "api");
+
+    // If DNS check fails, and dkim key is not in DB, we calcualte gcd via calling the processAndStoreEmailSignature function else we store the email signature
+    await processAndStoreEmailSignature(
+      headers,
+      dkimSig,
+      tags,
+      internalDate,
+      decodedEmailRaw,
+      addResult
+    );
 
     const domainSelectorPair = { domain, selector };
     resultArray.push({

@@ -6,6 +6,13 @@ import * as crypto from 'crypto';
 // Regex to extract DKIM-Signature header blocks
 export const DKIM_HEADER_REGEX = /^DKIM-Signature:\s*(.+?)(?=\r?\n[^ \t])/gims;
 
+export const DIGEST_INFO: Record<string, Buffer> = {
+    'rsa-sha1': Buffer.from('3021300906052b0e03021a05000414', 'hex'),
+    'rsa-sha256': Buffer.from('3031300d060960864801650304020105000420', 'hex'),
+    'rsa-sha512': Buffer.from('3051300d060960864801650304020305000440', 'hex'),
+};
+
+
 export type DomainAndSelector = {
 	domain: string,
 	selector: string
@@ -531,11 +538,21 @@ export function computeCanonicalizedHeaderHash(
     hash.update(Buffer.from(hdr[1]));
   }
 
-  console.log("\nsigHdr[0], sigHdr[1]",sigHdr[0])
+  // console.log("\nsigHdr[0], sigHdr[1]",sigHdr[0])
 
   hash.update(Buffer.from(sigHdr[0][0],));
   hash.update(Buffer.from(":",));
   // This is because relaxed canon have \r\n at end of every header value except signature
   if(canon == 'relaxed') hash.update(Buffer.from(sigHdr[0][1].replace(/\s+$/gm, '')));
   else hash.update(Buffer.from(sigHdr[0][1]))
+}
+
+// Build EMSA-PKCS#1 v1.5 block: ASN.1 prefix + __0xff__ padding + framing (__0x0001…00__). 
+export function encodeRsaPkcs1Digest(digest: Buffer, algName: string, keySize: number): BigInt {
+    const prefix = DIGEST_INFO[algName] || Buffer.alloc(0);
+    const t = Buffer.concat([prefix, digest]);
+    const psLen = keySize - t.length - 3;
+    const padding = Buffer.alloc(psLen, 0xff);
+    const em = Buffer.concat([Buffer.from([0x00, 0x01]), padding, Buffer.from([0x00]), t]);
+    return BigInt(`0x${em.toString('hex')}`);
 }

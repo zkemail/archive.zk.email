@@ -141,7 +141,7 @@ export async function fetchDkimDnsRecord(domain: string, selector: string): Prom
 		catch (error) {
 			console.log(`[DNS] All DNS servers failed for ${qname}: ${error}.`);
 			return [];
-		}	
+		}
 	}
 	console.log(`found: ${records.length} records for ${qname}`);
 	const result = [];
@@ -199,3 +199,15 @@ export async function fetchAndStoreDkimDnsRecord(dsp: DomainSelectorPair) {
 		}
 	}
 }
+
+export function pubKeyLength(tags: any) {
+	let minBytes = Buffer.from(tags.b || '', 'base64').length;
+	const candidates = [128, 256, 512, 1024];
+	for (const candidate of candidates) {
+		if (minBytes <= candidate) {
+			return candidate;
+		}
+	}
+	return minBytes;
+}
+
