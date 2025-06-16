@@ -1,4 +1,4 @@
 project_id                   = "your-project-id"
 region                       = "us-central1"
 environment                  = "dev"
-nextjs_service_account_email = ""
+archive_service_account_email = ""

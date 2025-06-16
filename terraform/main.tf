@@ -74,7 +74,7 @@ resource "google_project_iam_member" "tasks_function_invoker" {
 resource "google_project_iam_member" "nextjs_tasks_enqueuer" {
   project = var.project_id
   role    = "roles/cloudtasks.enqueuer"
-  member  = "serviceAccount:${var.nextjs_service_account_email}"
+  member  = "serviceAccount:${var.archive_service_account_email}"
 }
 
 # Create Cloud Storage bucket for function source
