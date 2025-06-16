@@ -14,6 +14,7 @@ jobs:
   terraform:
     name: 'Terraform Plan & Apply'
     runs-on: ubuntu-latest
+    environment: ${{ github.event_name == 'pull_request' && 'Preview' || 'Production' }}
     
     outputs:
       google_cloud_project_id: ${{ steps.terraform_output.outputs.google_cloud_project_id }}
@@ -68,7 +69,7 @@ jobs:
       working-directory: ${{ env.TF_WORKING_DIR }}
 
     - name: Terraform Apply
-      if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+      if: github.ref == 'refs/heads/main'
       id: apply
       run: |
         terraform apply -auto-approve -input=false \
@@ -79,7 +80,7 @@ jobs:
       working-directory: ${{ env.TF_WORKING_DIR }}
 
     - name: Get Terraform Outputs
-      if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+      if: github.ref == 'refs/heads/main'
       id: terraform_output
       run: |
         echo "google_cloud_project_id=$(terraform output -raw GOOGLE_CLOUD_PROJECT_ID)" >> $GITHUB_OUTPUT
@@ -120,7 +121,7 @@ jobs:
     name: 'Update Render Environment'
     runs-on: ubuntu-latest
     needs: terraform
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    if: github.ref == 'refs/heads/main' 
     
     steps:
     - name: Update Render Environment Variables
