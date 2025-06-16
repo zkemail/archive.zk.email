@@ -108,10 +108,12 @@ async function handleRequest(request: NextRequest) {
   const headersList = await headers();
   const host = headersList.get('host');
   const baseUrl = process.env.NODE_ENV === 'development' ? `http://${host}/api/auth/callback/google` : `https://${host}/api/auth/callback/google`;
+  const clientId = process.env.IS_PULL_REQUEST == "true" ? process.env.PREVIEW_GOOGLE_CLIENT_ID : process.env.GOOGLE_CLIENT_ID || '';
+  const clientSecret = process.env.IS_PULL_REQUEST == "true" ? process.env.PREVIEW_GOOGLE_CLIENT_SECRET : process.env.GOOGLE_CLIENT_SECRET;
   const oauth2Client = new google.auth.OAuth2(
+    clientId,
+    clientSecret,
     baseUrl,
-    process.env.GOOGLE_CLIENT_SECRET,
-    process.env.GOOGLE_REDIRECT_URI
   );
   const gmail = google.gmail({ version: "v1", auth: oauth2Client });
 

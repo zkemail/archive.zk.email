@@ -6,8 +6,8 @@ import GoogleProvider from "next-auth/providers/google"
 export const authOptions = {
 	providers: [
 		GoogleProvider({
-			clientId: process.env.GOOGLE_CLIENT_ID || '',
-			clientSecret: process.env.GOOGLE_CLIENT_SECRET || '',
+			clientId: `${process.env.IS_PULL_REQUEST == "true" ? process.env.PREVIEW_GOOGLE_CLIENT_ID : process.env.GOOGLE_CLIENT_ID}` || '',
+			clientSecret: `${process.env.IS_PULL_REQUEST == "true" ? process.env.PREVIEW_GOOGLE_CLIENT_SECRET : process.env.GOOGLE_CLIENT_SECRET}` || '',
 			authorization: {
 				params: {
 					prompt: "consent",
@@ -35,8 +35,8 @@ export const authOptions = {
 					const response = await fetch("https://oauth2.googleapis.com/token", {
 						headers: { "Content-Type": "application/x-www-form-urlencoded" },
 						body: new URLSearchParams({
-							client_id: process.env.GOOGLE_CLIENT_ID || '',
-							client_secret: process.env.GOOGLE_CLIENT_SECRET || '',
+							client_id: `${process.env.IS_PULL_REQUEST == "true" ? process.env.PREVIEW_GOOGLE_CLIENT_ID : process.env.GOOGLE_CLIENT_ID}` || '',
+							client_secret: `${process.env.IS_PULL_REQUEST == "true" ? process.env.PREVIEW_GOOGLE_CLIENT_SECRET : process.env.GOOGLE_CLIENT_SECRET}` || '',
 							grant_type: "refresh_token",
 							refresh_token: token.refresh_token,
 						}),
@@ -73,9 +73,10 @@ export const authOptions = {
 			}
 			return sessionResponse
 		},
-		async redirect(){
+		async redirect() {
 			return "/upload_gmail"
-;		}
+				;
+		}
 	}
 }
 
