@@ -25,6 +25,7 @@ jobs:
   terraform-manual:
     name: 'Manual Terraform Operation'
     runs-on: ubuntu-latest
+    environment: ${{ github.event_name == 'pull_request' && 'Preview' || 'Production' }}
     
     steps:
     - name: Validate Destroy Confirmation
@@ -44,6 +45,15 @@ jobs:
       with:
         terraform_version: ${{ env.TF_VERSION }}
         terraform_wrapper: false
+
+    - name: Authenticate to Google Cloud
+      id: auth
+      uses: google-github-actions/auth@v2
+      with:
+        credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+    - name: Setup Google Cloud CLI
+      uses: google-github-actions/setup-gcloud@v2
 
     - name: Terraform Init
       run: terraform init
