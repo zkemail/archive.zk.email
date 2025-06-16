@@ -101,16 +101,6 @@ jobs:
           #### Terraform Validation 🤖\`${{ steps.validate.outcome }}\`
           #### Terraform Plan 📖\`${{ steps.plan.outcome }}\`
           
-          <details><summary>Show Plan</summary>
-          
-          \`\`\`terraform
-          ${{ steps.plan.outputs.stdout }}
-          \`\`\`
-          
-          </details>
-          
-          *Pusher: @${{ github.actor }}, Action: \`${{ github.event_name }}\`*`;
-          
           github.rest.issues.createComment({
             issue_number: context.issue.number,
             owner: context.repo.owner,
