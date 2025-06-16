@@ -1,0 +1,194 @@
+name: Deploy Infrastructure and Update Render
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+env:
+  TF_VERSION: '1.5.0'
+  TF_WORKING_DIR: './terraform'
+
+jobs:
+  terraform:
+    name: 'Terraform Plan & Apply'
+    runs-on: ubuntu-latest
+    
+    outputs:
+      google_cloud_project_id: ${{ steps.terraform_output.outputs.google_cloud_project_id }}
+      google_cloud_region: ${{ steps.terraform_output.outputs.google_cloud_region }}
+      cloud_tasks_queue_name: ${{ steps.terraform_output.outputs.cloud_tasks_queue_name }}
+      cloud_function_url: ${{ steps.terraform_output.outputs.cloud_function_url }}
+      tasks_service_account_email: ${{ steps.terraform_output.outputs.tasks_service_account_email }}
+    
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+
+    - name: Setup Terraform
+      uses: hashicorp/setup-terraform@v3
+      with:
+        terraform_version: ${{ env.TF_VERSION }}
+        terraform_wrapper: false
+
+    - name: Authenticate to Google Cloud
+      id: auth
+      uses: google-github-actions/auth@v2
+      with:
+        credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+    - name: Setup Google Cloud CLI
+      uses: google-github-actions/setup-gcloud@v2
+
+    - name: Terraform Format Check
+      id: fmt
+      run: terraform fmt -check -recursive
+      working-directory: ${{ env.TF_WORKING_DIR }}
+      continue-on-error: true
+
+    - name: Terraform Init
+      id: init
+      run: terraform init
+      working-directory: ${{ env.TF_WORKING_DIR }}
+
+    - name: Terraform Validate
+      id: validate
+      run: terraform validate -no-color
+      working-directory: ${{ env.TF_WORKING_DIR }}
+
+    - name: Terraform Plan
+      id: plan
+      run: |
+        terraform plan -no-color -input=false \
+          -var="project_id=${{ secrets.GCP_PROJECT_ID }}" \
+          -var="region=${{ secrets.GCP_REGION }}" \
+          -var="environment=${{ secrets.ENVIRONMENT }}" \
+          -var="archive_service_account_email=${{ secrets.ARCHIVE_SERVICE_ACCOUNT_EMAIL }}"
+      working-directory: ${{ env.TF_WORKING_DIR }}
+
+    - name: Terraform Apply
+      if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+      id: apply
+      run: |
+        terraform apply -auto-approve -input=false \
+          -var="project_id=${{ secrets.GCP_PROJECT_ID }}" \
+          -var="region=${{ secrets.GCP_REGION }}" \
+          -var="environment=${{ secrets.ENVIRONMENT }}" \
+          -var="archive_service_account_email=${{ secrets.ARCHIVE_SERVICE_ACCOUNT_EMAIL }}"
+      working-directory: ${{ env.TF_WORKING_DIR }}
+
+    - name: Get Terraform Outputs
+      if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+      id: terraform_output
+      run: |
+        echo "google_cloud_project_id=$(terraform output -raw GOOGLE_CLOUD_PROJECT_ID)" >> $GITHUB_OUTPUT
+        echo "google_cloud_region=$(terraform output -raw GOOGLE_CLOUD_REGION)" >> $GITHUB_OUTPUT
+        echo "cloud_tasks_queue_name=$(terraform output -raw CLOUD_TASKS_QUEUE_NAME)" >> $GITHUB_OUTPUT
+        echo "cloud_function_url=$(terraform output -raw CLOUD_FUNCTION_URL)" >> $GITHUB_OUTPUT
+        echo "tasks_service_account_email=$(terraform output -raw TASKS_SERVICE_ACCOUNT_EMAIL)" >> $GITHUB_OUTPUT
+      working-directory: ${{ env.TF_WORKING_DIR }}
+
+    - name: Comment PR
+      if: github.event_name == 'pull_request'
+      uses: actions/github-script@v7
+      with:
+        script: |
+          const output = `#### Terraform Format and Style 🖌\`${{ steps.fmt.outcome }}\`
+          #### Terraform Initialization ⚙️\`${{ steps.init.outcome }}\`
+          #### Terraform Validation 🤖\`${{ steps.validate.outcome }}\`
+          #### Terraform Plan 📖\`${{ steps.plan.outcome }}\`
+          
+          <details><summary>Show Plan</summary>
+          
+          \`\`\`terraform
+          ${{ steps.plan.outputs.stdout }}
+          \`\`\`
+          
+          </details>
+          
+          *Pusher: @${{ github.actor }}, Action: \`${{ github.event_name }}\`*`;
+          
+          github.rest.issues.createComment({
+            issue_number: context.issue.number,
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            body: output
+          })
+
+  update-render:
+    name: 'Update Render Environment'
+    runs-on: ubuntu-latest
+    needs: terraform
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    
+    steps:
+    - name: Update Render Environment Variables
+      run: |
+        # Function to update environment variable
+        update_env_var() {
+          local key=$1
+          local value=$2
+          
+          echo "Updating $key..."
+          
+          response=$(curl -s -w "%{http_code}" -o response.json \
+            -X PUT \
+            -H "Authorization: Bearer ${{ secrets.RENDER_API_KEY }}" \
+            -H "Content-Type: application/json" \
+            -d "{\"value\": \"$value\"}" \
+            "https://api.render.com/v1/services/${{ secrets.RENDER_SERVICE_ID }}/env-vars/$key")
+          
+          http_code="${response: -3}"
+          
+          if [ "$http_code" -eq 200 ] || [ "$http_code" -eq 201 ]; then
+            echo "✅ Successfully updated $key"
+          else
+            echo "❌ Failed to update $key (HTTP $http_code)"
+            cat response.json
+            exit 1
+          fi
+        }
+        
+        # Update all environment variables
+        update_env_var "GOOGLE_CLOUD_PROJECT_ID" "${{ needs.terraform.outputs.google_cloud_project_id }}"
+        update_env_var "GOOGLE_CLOUD_REGION" "${{ needs.terraform.outputs.google_cloud_region }}"
+        update_env_var "CLOUD_TASKS_QUEUE_NAME" "${{ needs.terraform.outputs.cloud_tasks_queue_name }}"
+        update_env_var "CLOUD_FUNCTION_URL" "${{ needs.terraform.outputs.cloud_function_url }}"
+        update_env_var "TASKS_SERVICE_ACCOUNT_EMAIL" "${{ needs.terraform.outputs.tasks_service_account_email }}"
+
+    - name: Trigger Render Deployment
+      run: |
+        echo "Triggering Render deployment..."
+        
+        response=$(curl -s -w "%{http_code}" -o deploy_response.json \
+          -X POST \
+          -H "Authorization: Bearer ${{ secrets.RENDER_API_KEY }}" \
+          -H "Content-Type: application/json" \
+          "https://api.render.com/v1/services/${{ secrets.RENDER_SERVICE_ID }}/deploys")
+        
+        http_code="${response: -3}"
+        
+        if [ "$http_code" -eq 201 ]; then
+          echo "✅ Successfully triggered Render deployment"
+          deploy_id=$(cat deploy_response.json | jq -r '.id')
+          echo "Deployment ID: $deploy_id"
+        else
+          echo "❌ Failed to trigger deployment (HTTP $http_code)"
+          cat deploy_response.json
+          exit 1
+        fi
+
+    - name: Deployment Summary
+      run: |
+        echo "## 🚀 Deployment Summary" >> $GITHUB_STEP_SUMMARY
+        echo "- ✅ Terraform infrastructure updated" >> $GITHUB_STEP_SUMMARY
+        echo "- ✅ Render environment variables updated" >> $GITHUB_STEP_SUMMARY
+        echo "- ✅ Render deployment triggered" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "### Updated Environment Variables:" >> $GITHUB_STEP_SUMMARY
+        echo "- GOOGLE_CLOUD_PROJECT_ID: ${{ needs.terraform.outputs.google_cloud_project_id }}" >> $GITHUB_STEP_SUMMARY
+        echo "- GOOGLE_CLOUD_REGION: ${{ needs.terraform.outputs.google_cloud_region }}" >> $GITHUB_STEP_SUMMARY
+        echo "- CLOUD_TASKS_QUEUE_NAME: ${{ needs.terraform.outputs.cloud_tasks_queue_name }}" >> $GITHUB_STEP_SUMMARY
+        echo "- CLOUD_FUNCTION_URL: ${{ needs.terraform.outputs.cloud_function_url }}" >> $GITHUB_STEP_SUMMARY
+        echo "- TASKS_SERVICE_ACCOUNT_EMAIL: ${{ needs.terraform.outputs.tasks_service_account_email }}" >> $GITHUB_STEP_SUMMARY

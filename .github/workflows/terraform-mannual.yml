@@ -1,0 +1,192 @@
+name: Manual Terraform Operations
+
+on:
+  workflow_dispatch:
+    inputs:
+      action:
+        description: 'Choose Terraform action'
+        required: true
+        default: 'plan'
+        type: choice
+        options:
+          - plan
+          - apply
+          - destroy
+      confirm_destroy:
+        description: 'Type "DESTROY" to confirm destruction (required for destroy action)'
+        required: false
+        type: string
+
+env:
+  TF_VERSION: '1.5.0'
+  TF_WORKING_DIR: './terraform'
+
+jobs:
+  terraform-manual:
+    name: 'Manual Terraform Operation'
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Validate Destroy Confirmation
+      if: github.event.inputs.action == 'destroy'
+      run: |
+        if [ "${{ github.event.inputs.confirm_destroy }}" != "DESTROY" ]; then
+          echo "❌ Destroy confirmation required. Please type 'DESTROY' in the confirm_destroy input."
+          exit 1
+        fi
+        echo "✅ Destroy confirmation validated"
+
+    - name: Checkout
+      uses: actions/checkout@v4
+
+    - name: Setup Terraform
+      uses: hashicorp/setup-terraform@v3
+      with:
+        terraform_version: ${{ env.TF_VERSION }}
+        terraform_wrapper: false
+
+    - name: Terraform Init
+      run: terraform init
+      working-directory: ${{ env.TF_WORKING_DIR }}
+
+    - name: Terraform Plan
+      if: github.event.inputs.action == 'plan'
+      run: |
+        echo "## 📋 Terraform Plan" >> $GITHUB_STEP_SUMMARY
+        terraform plan -no-color -input=false \
+          -var="project_id=${{ secrets.GCP_PROJECT_ID }}" \
+          -var="region=${{ secrets.GCP_REGION }}" \
+          -var="environment=${{ secrets.ENVIRONMENT }}" \
+          -var="archive_service_account_email=${{ secrets.ARCHIVE_SERVICE_ACCOUNT_EMAIL }}" \
+          | tee plan_output.txt
+        
+        echo "\`\`\`terraform" >> $GITHUB_STEP_SUMMARY
+        cat plan_output.txt >> $GITHUB_STEP_SUMMARY
+        echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+      working-directory: ${{ env.TF_WORKING_DIR }}
+
+    - name: Terraform Apply
+      if: github.event.inputs.action == 'apply'
+      run: |
+        echo "## 🚀 Terraform Apply" >> $GITHUB_STEP_SUMMARY
+        terraform apply -auto-approve -input=false \
+          -var="project_id=${{ secrets.GCP_PROJECT_ID }}" \
+          -var="region=${{ secrets.GCP_REGION }}" \
+          -var="environment=${{ secrets.ENVIRONMENT }}" \
+          -var="archive_service_account_email=${{ secrets.ARCHIVE_SERVICE_ACCOUNT_EMAIL }}" \
+          | tee apply_output.txt
+        
+        echo "✅ Infrastructure successfully applied" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "### Outputs:" >> $GITHUB_STEP_SUMMARY
+        
+        # Get and display outputs
+        terraform output -json > outputs.json
+        echo "- **Project ID:** $(terraform output -raw GOOGLE_CLOUD_PROJECT_ID)" >> $GITHUB_STEP_SUMMARY
+        echo "- **Region:** $(terraform output -raw GOOGLE_CLOUD_REGION)" >> $GITHUB_STEP_SUMMARY
+        echo "- **Queue Name:** $(terraform output -raw CLOUD_TASKS_QUEUE_NAME)" >> $GITHUB_STEP_SUMMARY
+        echo "- **Function URL:** $(terraform output -raw CLOUD_FUNCTION_URL)" >> $GITHUB_STEP_SUMMARY
+        echo "- **Service Account:** $(terraform output -raw TASKS_SERVICE_ACCOUNT_EMAIL)" >> $GITHUB_STEP_SUMMARY
+      working-directory: ${{ env.TF_WORKING_DIR }}
+
+    - name: Terraform Destroy Plan
+      if: github.event.inputs.action == 'destroy'
+      run: |
+        echo "## ⚠️ Terraform Destroy Plan" >> $GITHUB_STEP_SUMMARY
+        terraform plan -destroy -no-color -input=false \
+          -var="project_id=${{ secrets.GCP_PROJECT_ID }}" \
+          -var="region=${{ secrets.GCP_REGION }}" \
+          -var="environment=${{ secrets.ENVIRONMENT }}" \
+          -var="archive_service_account_email=${{ secrets.ARCHIVE_SERVICE_ACCOUNT_EMAIL }}" \
+          | tee destroy_plan.txt
+        
+        echo "\`\`\`terraform" >> $GITHUB_STEP_SUMMARY
+        cat destroy_plan.txt >> $GITHUB_STEP_SUMMARY
+        echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+      working-directory: ${{ env.TF_WORKING_DIR }}
+
+    - name: Terraform Destroy
+      if: github.event.inputs.action == 'destroy'
+      run: |
+        echo "## 💥 Terraform Destroy" >> $GITHUB_STEP_SUMMARY
+        terraform destroy -auto-approve -input=false \
+          -var="project_id=${{ secrets.GCP_PROJECT_ID }}" \
+          -var="region=${{ secrets.GCP_REGION }}" \
+          -var="environment=${{ secrets.ENVIRONMENT }}" \
+          -var="archive_service_account_email=${{ secrets.ARCHIVE_SERVICE_ACCOUNT_EMAIL }}" \
+          | tee destroy_output.txt
+        
+        echo "💥 Infrastructure successfully destroyed" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "⚠️ **All resources have been removed from GCP**" >> $GITHUB_STEP_SUMMARY
+      working-directory: ${{ env.TF_WORKING_DIR }}
+
+    - name: Update Render on Apply
+      if: github.event.inputs.action == 'apply'
+      run: |
+        cd ${{ env.TF_WORKING_DIR }}
+        
+        # Function to update environment variable
+        update_env_var() {
+          local key=$1
+          local value=$2
+          
+          echo "Updating $key..."
+          
+          response=$(curl -s -w "%{http_code}" -o response.json \
+            -X PUT \
+            -H "Authorization: Bearer ${{ secrets.RENDER_API_KEY }}" \
+            -H "Content-Type: application/json" \
+            -d "{\"value\": \"$value\"}" \
+            "https://api.render.com/v1/services/${{ secrets.RENDER_SERVICE_ID }}/env-vars/$key")
+          
+          http_code="${response: -3}"
+          
+          if [ "$http_code" -eq 200 ] || [ "$http_code" -eq 201 ]; then
+            echo "✅ Successfully updated $key"
+          else
+            echo "❌ Failed to update $key (HTTP $http_code)"
+            cat response.json
+            return 1
+          fi
+        }
+        
+        # Update all environment variables
+        update_env_var "GOOGLE_CLOUD_PROJECT_ID" "$(terraform output -raw GOOGLE_CLOUD_PROJECT_ID)"
+        update_env_var "GOOGLE_CLOUD_REGION" "$(terraform output -raw GOOGLE_CLOUD_REGION)"
+        update_env_var "CLOUD_TASKS_QUEUE_NAME" "$(terraform output -raw CLOUD_TASKS_QUEUE_NAME)"
+        update_env_var "CLOUD_FUNCTION_URL" "$(terraform output -raw CLOUD_FUNCTION_URL)"
+        update_env_var "TASKS_SERVICE_ACCOUNT_EMAIL" "$(terraform output -raw TASKS_SERVICE_ACCOUNT_EMAIL)"
+        
+        # Trigger deployment
+        echo "Triggering Render deployment..."
+        response=$(curl -s -w "%{http_code}" -o deploy_response.json \
+          -X POST \
+          -H "Authorization: Bearer ${{ secrets.RENDER_API_KEY }}" \
+          -H "Content-Type: application/json" \
+          "https://api.render.com/v1/services/${{ secrets.RENDER_SERVICE_ID }}/deploys")
+        
+        http_code="${response: -3}"
+        
+        if [ "$http_code" -eq 201 ]; then
+          echo "✅ Successfully triggered Render deployment"
+          deploy_id=$(cat deploy_response.json | jq -r '.id')
+          echo "🚀 Render deployment triggered (ID: $deploy_id)" >> $GITHUB_STEP_SUMMARY
+        else
+          echo "❌ Failed to trigger deployment (HTTP $http_code)"
+          cat deploy_response.json
+          exit 1
+        fi
+
+    - name: Operation Summary
+      run: |
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "---" >> $GITHUB_STEP_SUMMARY
+        echo "**Operation:** ${{ github.event.inputs.action }}" >> $GITHUB_STEP_SUMMARY
+        echo "**Triggered by:** @${{ github.actor }}" >> $GITHUB_STEP_SUMMARY
+        echo "**Timestamp:** $(date -u)" >> $GITHUB_STEP_SUMMARY
+        
+        if [ "${{ github.event.inputs.action }}" = "destroy" ]; then
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "⚠️ **WARNING:** All GCP resources have been destroyed. You will need to run 'apply' to recreate the infrastructure." >> $GITHUB_STEP_SUMMARY
+        fi
