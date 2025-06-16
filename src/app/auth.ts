@@ -73,9 +73,8 @@ export const authOptions = {
 			}
 			return sessionResponse
 		},
-		async redirect() {
-			return "/upload_gmail"
-				;
+		async redirect({ url, baseUrl }: { url: string, baseUrl: string }) {
+			return `${baseUrl}/upload_gmail`
 		}
 	}
 }
