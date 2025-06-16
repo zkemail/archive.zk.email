@@ -12,6 +12,37 @@ pow_int = lambda base, exp: base**exp
 
 E = mpz(65537)  # The public exponent
 
+# https://stackoverflow.com/a/2212923/961254
+def gen_primes():
+	D: dict[int, list[int]] = {}
+	q = 2
+	while True:
+		if q not in D:
+			yield q
+			D[q * q] = [q]
+		else:
+			for p in D[q]:
+				D.setdefault(p + q, []).append(p)
+			del D[q]
+		q += 1
+
+def first_n_primes(n: int) -> list[int]:
+	x: set[int] = set()
+	y = 0
+	a = gen_primes()
+	while y < n:
+		x |= set([next(a)])
+		y += 1
+	return list(sorted(x))
+
+
+def remove_small_prime_factors(n: Any):
+	for p in first_n_primes(1500):
+		while n % p == 0:
+			n = n // p
+	return n
+
+
 def send_callback(callback_url: str, result_data: Dict[str, Any], max_retries: int = 3):
     """
     Send the result back to the callback URL with retry logic.
@@ -107,13 +138,10 @@ def calculate_gcd(request):
         
         term1 = pow_int(s1, E) - em1
         term2 = pow_int(s2, E) - em2
-        n = gcd(term1, term2)
+        n: Any = gcd(term1, term2)
 
         # Remove small prime factors for cleanup
-        for p_val in [2, 3, 5, 17, 257, 65537]:
-            p = mpz(p_val)
-            while n % p == 0 and n > p:
-                n //= p
+        n = remove_small_prime_factors(n)
         print("Calculated GCD :", n);
         # Clean up intermediate variables
         del term1, term2
@@ -126,7 +154,6 @@ def calculate_gcd(request):
             'result': str(n),
             'taskId': task_id,
             'metadata': metadata,
-            'timestamp': request_json.get('timestamp') or None
         }
 
         # Send result to callback URL
