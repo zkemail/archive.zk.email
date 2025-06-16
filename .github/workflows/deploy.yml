@@ -79,7 +79,6 @@ jobs:
       working-directory: ${{ env.TF_WORKING_DIR }}
 
     - name: Get Terraform Outputs
-      if: github.ref == 'refs/heads/main'
       id: terraform_output
       run: |
         echo "google_cloud_project_id=$(terraform output -raw GOOGLE_CLOUD_PROJECT_ID)" >> $GITHUB_OUTPUT
