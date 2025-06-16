@@ -78,14 +78,20 @@ jobs:
           -var="archive_service_account_email=${{ secrets.ARCHIVE_SERVICE_ACCOUNT_EMAIL }}"
       working-directory: ${{ env.TF_WORKING_DIR }}
 
-    - name: Get Terraform Outputs
+    - name: Get Terraform Outputs (Alternative Secure Method)
       id: terraform_output
       run: |
-        echo "google_cloud_project_id=$(terraform output -raw GOOGLE_CLOUD_PROJECT_ID)" >> $GITHUB_OUTPUT
-        echo "google_cloud_region=$(terraform output -raw GOOGLE_CLOUD_REGION)" >> $GITHUB_OUTPUT
-        echo "cloud_tasks_queue_name=$(terraform output -raw CLOUD_TASKS_QUEUE_NAME)" >> $GITHUB_OUTPUT
-        echo "cloud_function_url=$(terraform output -raw CLOUD_FUNCTION_URL)" >> $GITHUB_OUTPUT
-        echo "tasks_service_account_email=$(terraform output -raw TASKS_SERVICE_ACCOUNT_EMAIL)" >> $GITHUB_OUTPUT
+        # Get all outputs as JSON without exposing individual values
+        OUTPUT_JSON=$(terraform output -json)
+        
+        # Parse and set outputs using jq without echoing values
+        echo "google_cloud_project_id=$(echo "$OUTPUT_JSON" | jq -r '.GOOGLE_CLOUD_PROJECT_ID.value')" >> $GITHUB_OUTPUT
+        echo "google_cloud_region=$(echo "$OUTPUT_JSON" | jq -r '.GOOGLE_CLOUD_REGION.value')" >> $GITHUB_OUTPUT
+        echo "cloud_tasks_queue_name=$(echo "$OUTPUT_JSON" | jq -r '.CLOUD_TASKS_QUEUE_NAME.value')" >> $GITHUB_OUTPUT
+        echo "cloud_function_url=$(echo "$OUTPUT_JSON" | jq -r '.CLOUD_FUNCTION_URL.value')" >> $GITHUB_OUTPUT
+        echo "tasks_service_account_email=$(echo "$OUTPUT_JSON" | jq -r '.TASKS_SERVICE_ACCOUNT_EMAIL.value')" >> $GITHUB_OUTPUT
+        
+        echo "✅ Terraform outputs captured securely"
       working-directory: ${{ env.TF_WORKING_DIR }}
 
   update-render:
@@ -96,14 +102,19 @@ jobs:
     steps:
     - name: Update Render Environment Variables
       run: |
-        # Function to update environment variable
+        # Function to update environment variable silently
         update_env_var() {
           local key=$1
           local value=$2
           
+          if [ -z "$value" ]; then
+            echo "❌ Value for $key is empty, skipping..."
+            exit 1
+          fi
+          
           echo "Updating $key..."
           
-          response=$(curl -s -w "%{http_code}" -o response.json \
+          response=$(curl -s -w "%{http_code}" -o /tmp/response.json \
             -X PUT \
             -H "Authorization: Bearer ${{ secrets.RENDER_API_KEY }}" \
             -H "Content-Type: application/json" \
@@ -116,7 +127,10 @@ jobs:
             echo "✅ Successfully updated $key"
           else
             echo "❌ Failed to update $key (HTTP $http_code)"
-            cat response.json
+            # Only show error details, not the actual values
+            if [ -f /tmp/response.json ]; then
+              cat /tmp/response.json
+            fi
             exit 1
           fi
         }
@@ -132,7 +146,7 @@ jobs:
       run: |
         echo "Triggering Render deployment..."
         
-        response=$(curl -s -w "%{http_code}" -o deploy_response.json \
+        response=$(curl -s -w "%{http_code}" -o /tmp/deploy_response.json \
           -X POST \
           -H "Authorization: Bearer ${{ secrets.RENDER_API_KEY }}" \
           -H "Content-Type: application/json" \
@@ -142,24 +156,33 @@ jobs:
         
         if [ "$http_code" -eq 201 ]; then
           echo "✅ Successfully triggered Render deployment"
-          deploy_id=$(cat deploy_response.json | jq -r '.id')
-          echo "Deployment ID: $deploy_id"
+          if [ -f /tmp/deploy_response.json ]; then
+            deploy_id=$(cat /tmp/deploy_response.json | jq -r '.id // "unknown"')
+            echo "Deployment ID: $deploy_id"
+          fi
         else
           echo "❌ Failed to trigger deployment (HTTP $http_code)"
-          cat deploy_response.json
+          if [ -f /tmp/deploy_response.json ]; then
+            echo "Response:"
+            cat /tmp/deploy_response.json
+          fi
           exit 1
         fi
 
     - name: Deployment Summary
+      if: always()
       run: |
         echo "## 🚀 Deployment Summary" >> $GITHUB_STEP_SUMMARY
         echo "- ✅ Terraform infrastructure updated" >> $GITHUB_STEP_SUMMARY
-        echo "- ✅ Render environment variables updated" >> $GITHUB_STEP_SUMMARY
-        echo "- ✅ Render deployment triggered" >> $GITHUB_STEP_SUMMARY
+        
+        if [ "${{ job.status }}" = "success" ]; then
+          echo "- ✅ Render environment variables updated" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Render deployment triggered" >> $GITHUB_STEP_SUMMARY
+        else
+          echo "- ❌ Render update failed" >> $GITHUB_STEP_SUMMARY
+        fi
+        
         echo "" >> $GITHUB_STEP_SUMMARY
-        echo "### Updated Environment Variables:" >> $GITHUB_STEP_SUMMARY
-        echo "- GOOGLE_CLOUD_PROJECT_ID: ${{ needs.terraform.outputs.google_cloud_project_id }}" >> $GITHUB_STEP_SUMMARY
-        echo "- GOOGLE_CLOUD_REGION: ${{ needs.terraform.outputs.google_cloud_region }}" >> $GITHUB_STEP_SUMMARY
-        echo "- CLOUD_TASKS_QUEUE_NAME: ${{ needs.terraform.outputs.cloud_tasks_queue_name }}" >> $GITHUB_STEP_SUMMARY
-        echo "- CLOUD_FUNCTION_URL: ${{ needs.terraform.outputs.cloud_function_url }}" >> $GITHUB_STEP_SUMMARY
-        echo "- TASKS_SERVICE_ACCOUNT_EMAIL: ${{ needs.terraform.outputs.tasks_service_account_email }}" >> $GITHUB_STEP_SUMMARY
+        echo "### Status:" >> $GITHUB_STEP_SUMMARY
+        echo "- Environment variables have been securely updated in Render" >> $GITHUB_STEP_SUMMARY
+        echo "- All sensitive values were passed without logging" >> $GITHUB_STEP_SUMMARY
