@@ -16,13 +16,6 @@ jobs:
     runs-on: ubuntu-latest
     environment: ${{ github.event_name == 'pull_request' && 'Preview' || 'Production' }}
     
-    outputs:
-      google_cloud_project_id: ${{ steps.terraform_output.outputs.google_cloud_project_id }}
-      google_cloud_region: ${{ steps.terraform_output.outputs.google_cloud_region }}
-      cloud_tasks_queue_name: ${{ steps.terraform_output.outputs.cloud_tasks_queue_name }}
-      cloud_function_url: ${{ steps.terraform_output.outputs.cloud_function_url }}
-      tasks_service_account_email: ${{ steps.terraform_output.outputs.tasks_service_account_email }}
-    
     steps:
     - name: Checkout
       uses: actions/checkout@v4
@@ -78,21 +71,33 @@ jobs:
           -var="archive_service_account_email=${{ secrets.ARCHIVE_SERVICE_ACCOUNT_EMAIL }}"
       working-directory: ${{ env.TF_WORKING_DIR }}
 
-    - name: Get Terraform Outputs (Alternative Secure Method)
-      id: terraform_output
+    # OPTION 1: Save outputs to file (Recommended)
+    - name: Save Terraform Outputs to File
+      id: save_outputs
       run: |
-        # Get all outputs as JSON without exposing individual values
-        OUTPUT_JSON=$(terraform output -json)
+        # Create outputs directory
+        mkdir -p outputs
         
-        # Parse and set outputs using jq without echoing values
-        echo "google_cloud_project_id=$(echo "$OUTPUT_JSON" | jq -r '.GOOGLE_CLOUD_PROJECT_ID.value')" >> $GITHUB_OUTPUT
-        echo "google_cloud_region=$(echo "$OUTPUT_JSON" | jq -r '.GOOGLE_CLOUD_REGION.value')" >> $GITHUB_OUTPUT
-        echo "cloud_tasks_queue_name=$(echo "$OUTPUT_JSON" | jq -r '.CLOUD_TASKS_QUEUE_NAME.value')" >> $GITHUB_OUTPUT
-        echo "cloud_function_url=$(echo "$OUTPUT_JSON" | jq -r '.CLOUD_FUNCTION_URL.value')" >> $GITHUB_OUTPUT
-        echo "tasks_service_account_email=$(echo "$OUTPUT_JSON" | jq -r '.TASKS_SERVICE_ACCOUNT_EMAIL.value')" >> $GITHUB_OUTPUT
+        # Get terraform outputs and save to file
+        terraform output -json > outputs/terraform_outputs.json
         
-        echo "✅ Terraform outputs captured securely"
+        # Verify file was created and contains data
+        if [ -s outputs/terraform_outputs.json ]; then
+          echo "✅ Terraform outputs saved successfully"
+          echo "outputs_saved=true" >> $GITHUB_OUTPUT
+        else
+          echo "❌ Failed to save terraform outputs"
+          echo "outputs_saved=false" >> $GITHUB_OUTPUT
+          exit 1
+        fi
       working-directory: ${{ env.TF_WORKING_DIR }}
+
+    - name: Upload Terraform Outputs
+      uses: actions/upload-artifact@v4
+      with:
+        name: terraform-outputs
+        path: terraform/outputs/terraform_outputs.json
+        retention-days: 1
 
   update-render:
     name: 'Update Render Environment'
@@ -100,15 +105,37 @@ jobs:
     needs: terraform
     
     steps:
+    - name: Download Terraform Outputs
+      uses: actions/download-artifact@v4
+      with:
+        name: terraform-outputs
+        path: ./outputs
+
     - name: Update Render Environment Variables
       run: |
+        # Read terraform outputs from file
+        if [ ! -f "./outputs/terraform_outputs.json" ]; then
+          echo "❌ Terraform outputs file not found"
+          exit 1
+        fi
+        
+        # Parse outputs from JSON file
+        OUTPUTS_JSON=$(cat ./outputs/terraform_outputs.json)
+        
+        # Extract values using jq
+        GOOGLE_CLOUD_PROJECT_ID=$(echo "$OUTPUTS_JSON" | jq -r '.GOOGLE_CLOUD_PROJECT_ID.value')
+        GOOGLE_CLOUD_REGION=$(echo "$OUTPUTS_JSON" | jq -r '.GOOGLE_CLOUD_REGION.value')
+        CLOUD_TASKS_QUEUE_NAME=$(echo "$OUTPUTS_JSON" | jq -r '.CLOUD_TASKS_QUEUE_NAME.value')
+        CLOUD_FUNCTION_URL=$(echo "$OUTPUTS_JSON" | jq -r '.CLOUD_FUNCTION_URL.value')
+        TASKS_SERVICE_ACCOUNT_EMAIL=$(echo "$OUTPUTS_JSON" | jq -r '.TASKS_SERVICE_ACCOUNT_EMAIL.value')
+        
         # Function to update environment variable silently
         update_env_var() {
           local key=$1
           local value=$2
           
-          if [ -z "$value" ]; then
-            echo "❌ Value for $key is empty, skipping..."
+          if [ -z "$value" ] || [ "$value" = "null" ]; then
+            echo "❌ Value for $key is empty or null, skipping..."
             exit 1
           fi
           
@@ -127,7 +154,6 @@ jobs:
             echo "✅ Successfully updated $key"
           else
             echo "❌ Failed to update $key (HTTP $http_code)"
-            # Only show error details, not the actual values
             if [ -f /tmp/response.json ]; then
               cat /tmp/response.json
             fi
@@ -136,11 +162,11 @@ jobs:
         }
         
         # Update all environment variables
-        update_env_var "GOOGLE_CLOUD_PROJECT_ID" "${{ needs.terraform.outputs.google_cloud_project_id }}"
-        update_env_var "GOOGLE_CLOUD_REGION" "${{ needs.terraform.outputs.google_cloud_region }}"
-        update_env_var "CLOUD_TASKS_QUEUE_NAME" "${{ needs.terraform.outputs.cloud_tasks_queue_name }}"
-        update_env_var "CLOUD_FUNCTION_URL" "${{ needs.terraform.outputs.cloud_function_url }}"
-        update_env_var "TASKS_SERVICE_ACCOUNT_EMAIL" "${{ needs.terraform.outputs.tasks_service_account_email }}"
+        update_env_var "GOOGLE_CLOUD_PROJECT_ID" "$GOOGLE_CLOUD_PROJECT_ID"
+        update_env_var "GOOGLE_CLOUD_REGION" "$GOOGLE_CLOUD_REGION"
+        update_env_var "CLOUD_TASKS_QUEUE_NAME" "$CLOUD_TASKS_QUEUE_NAME"
+        update_env_var "CLOUD_FUNCTION_URL" "$CLOUD_FUNCTION_URL"
+        update_env_var "TASKS_SERVICE_ACCOUNT_EMAIL" "$TASKS_SERVICE_ACCOUNT_EMAIL"
 
     - name: Trigger Render Deployment
       run: |
@@ -168,6 +194,13 @@ jobs:
           fi
           exit 1
         fi
+
+    - name: Cleanup
+      if: always()
+      run: |
+        # Remove the outputs file for security
+        rm -rf ./outputs
+        echo "✅ Temporary files cleaned up"
 
     - name: Deployment Summary
       if: always()
