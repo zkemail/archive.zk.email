@@ -18,11 +18,11 @@ export async function processAndStoreEmailSignature(
 	addResult: AddResult
 ) {
 	try {
-		// This verificationResult tells weather we can store header Hash and signature confidently or not,
-		// Currently not much relaiable
-		const verificationResult = await verifyDKIMSignature(email, "", true, false, true);
+		// This verificationResult tells weather we can bad signature or not,
+		const verificationResult = await verifyDKIMSignature(email, tags.d, true, true, true);
 	} catch (error) {
-		console.log(chalk.redBright('Error verifying DKIM signature:\n Domain: ', tags.d, '\n Error: \n', error, '\n'));
+		console.log(chalk.redBright('Error verifying DKIM signature:\n Domain: ', tags.d, '\n', error));
+		return;
 	}
 
 	/*
