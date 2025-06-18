@@ -53,12 +53,15 @@ def send_callback(callback_url: str, result_data: Dict[str, Any], max_retries: i
                 callback_url,
                 json=result_data,
                 headers={'Content-Type': 'application/json'},
-                timeout=30
+                timeout=300
             )
             
             if response.status_code == 200:
                 print(f"Successfully sent callback to {callback_url}")
                 return True
+            elif 400 <= response.status_code < 500:
+                print(f"Callback failed with client error {response.status_code}: {response.text}")
+                return False
             else:
                 print(f"Callback failed with status {response.status_code}: {response.text}")
                 
