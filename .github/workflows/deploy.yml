@@ -71,7 +71,6 @@ jobs:
           -var="archive_service_account_email=${{ secrets.ARCHIVE_SERVICE_ACCOUNT_EMAIL }}"
       working-directory: ${{ env.TF_WORKING_DIR }}
 
-    # OPTION 1: Save outputs to file (Recommended)
     - name: Save Terraform Outputs to File
       id: save_outputs
       run: |
