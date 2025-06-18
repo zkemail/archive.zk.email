@@ -1,4 +1,3 @@
-import { processHeader } from "dkim";
 import { prisma } from '@/lib/db';
 import { verifyDKIMSignature } from "@zk-email/helpers/dist/dkim";
 import crypto from 'crypto';
@@ -84,16 +83,7 @@ export async function processAndStoreEmailSignature(
 	4. We check if public Key already existed in DB or got via DNS query, if not we calculate the GCD
 	*/
 
-	const hashAndSignatureExists = await prisma.emailSignature.findFirst({
-		where: { headerHashV2: headerHash, dkimSignature: dkimSignatureRaw }
-	});
-
-	if (hashAndSignatureExists) {
-		console.log(chalk.yellow(`headerHash and Signature already exist in DB`));
-		return;
-	}
-
-	// check if Doamin-selector pair is present in EmailSignature table
+	// check if Doamin-selector pair is already present in EmailSignature table
 	const dsp = await prisma.emailSignature.findFirst({
 		where: {
 			domain: {
@@ -107,7 +97,15 @@ export async function processAndStoreEmailSignature(
 		}
 	});
 
-	if (!dsp) {
+	// Check hash And Signature Exists
+	const hashAndSignatureExists = await prisma.emailSignature.findFirst({
+		where: { headerHashV2: headerHash, dkimSignature: dkimSignatureRaw }
+	});
+
+	if (hashAndSignatureExists) {
+		console.log(chalk.yellow(`headerHash and Signature already exist in DB`));
+		return;
+	} else {
 		await prisma.emailSignature.create({
 			data: {
 				domain,
@@ -120,52 +118,42 @@ export async function processAndStoreEmailSignature(
 				canonInfo: '@zk-email/helpers@6.3.3'
 			}
 		});
-		console.log(chalk.red(`Only one DSP exist: Domain: ${domain}, Selector: ${selector}, Can't check GCD`))
-		return;
 	}
+
 
 	// AddResult checks if we got the Public Key via DNS query or it already existed in DB, if not we calculate the GCD
 	if (!addResult.added && !addResult.already_in_db) {
-		// Converting the signature into big int for gcd calculation
-		const signature1 = BigInt(`0x${Buffer.from(dkimSignatureRaw || '', 'base64').toString('hex')}`).toString();
-		const signature2 = BigInt(`0x${Buffer.from(dsp.dkimSignature || '', 'base64').toString('hex')}`).toString();
+		if (!dsp) { console.log(chalk.red(`No DSP exist: Domain: ${domain}, Selector: ${selector}, Can't check GCD`)); return; }
+		else {
+			// Converting the signature into big int for gcd calculation
+			const signature1 = BigInt(`0x${Buffer.from(dkimSignatureRaw, 'base64').toString('hex')}`).toString();
+			const signature2 = BigInt(`0x${Buffer.from(dsp.dkimSignature, 'base64').toString('hex')}`).toString();
 
-		const keySizeBytes = pubKeyLength(tags);
+			const keySizeBytes = pubKeyLength(dkimSignatureRaw);
 
-		// Converting header hashes into buffer and then into bigint for calculation
-		const headerHashBuffer1 = Buffer.from(headerHash, "hex");
-		const headerHashBuffer2 = Buffer.from(dsp.headerHashV2 || '', "hex");
+			// Converting header hashes into buffer and then into bigint for calculation
+			const headerHashBuffer1 = Buffer.from(headerHash, "hex");
+			const headerHashBuffer2 = Buffer.from(dsp.headerHashV2 || '', "hex");
 
-		// TODO: handle case what if the signing algo doesn't match
-		const encodedMessageDigest1 = encodeRsaPkcs1Digest(headerHashBuffer1, signingAlgorithm, keySizeBytes).toString();
-		const encodedMessageDigest2 = encodeRsaPkcs1Digest(headerHashBuffer2, signingAlgorithm, keySizeBytes).toString();
-		const taskId = crypto.randomBytes(16).toString('hex').toString();
-		const metadata = {
-			domain,
-			selector,
-			headerHash1: headerHash,
-			dkimSignature1: dkimSignatureRaw,
-			headerHash2: dsp.headerHashV2,
-			dkimSignature2: dsp.dkimSignature,
-			timestamp,
-			signingAlgorithm
-		};
-
-		const payload: GcdCalculationPayload = { s1: signature1, s2: signature2, em1: encodedMessageDigest1, em2: encodedMessageDigest2, taskId, metadata };
-
-		await createGcdCalculationTask(payload)
-
-		await prisma.emailSignature.create({
-			data: {
+			// TODO: handle case what if the signing algo doesn't match
+			const encodedMessageDigest1 = encodeRsaPkcs1Digest(headerHashBuffer1, signingAlgorithm, keySizeBytes).toString();
+			const encodedMessageDigest2 = encodeRsaPkcs1Digest(headerHashBuffer2, signingAlgorithm, keySizeBytes).toString();
+			const taskId = crypto.randomBytes(16).toString('hex').toString();
+			const metadata = {
 				domain,
 				selector,
-				headerHash,
-				headerHashV2: headerHash,
-				dkimSignature: dkimSignatureRaw,
+				headerHash1: headerHash,
+				dkimSignature1: dkimSignatureRaw,
+				headerHash2: dsp.headerHashV2,
+				dkimSignature2: dsp.dkimSignature,
 				timestamp,
-				signingAlgorithm,
-				canonInfo: '@zk-email/helpers@6.3.3'
-			}
-		});
+				signingAlgorithm
+			};
+
+			const payload: GcdCalculationPayload = { s1: signature1, s2: signature2, em1: encodedMessageDigest1, em2: encodedMessageDigest2, taskId, metadata };
+
+			await createGcdCalculationTask(payload)
+		}
+
 	}
 }
