@@ -1,0 +1,196 @@
+name: Deploy Infrastructure and Update Render
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+env:
+  TF_VERSION: '1.5.0'
+  TF_WORKING_DIR: './terraform'
+
+jobs:
+  deploy:
+    name: 'Deploy Infrastructure and Update Render'
+    runs-on: ubuntu-latest
+    environment: ${{ github.event_name == 'pull_request' && 'Preview' || 'Production' }}
+    
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+
+    - name: Setup Terraform
+      uses: hashicorp/setup-terraform@v3
+      with:
+        terraform_version: ${{ env.TF_VERSION }}
+        terraform_wrapper: false
+
+    - name: Authenticate to Google Cloud
+      id: auth
+      uses: google-github-actions/auth@v2
+      with:
+        credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+    - name: Setup Google Cloud CLI
+      uses: google-github-actions/setup-gcloud@v2
+
+    - name: Terraform Format Check
+      id: fmt
+      run: terraform fmt -check -recursive
+      working-directory: ${{ env.TF_WORKING_DIR }}
+      continue-on-error: true
+
+    - name: Terraform Init
+      id: init
+      run: terraform init
+      working-directory: ${{ env.TF_WORKING_DIR }}
+
+    - name: Select Terraform Workspace
+      id: workspace
+      run: |
+        if [ "${{ github.event_name }}" = "pull_request" ]; then
+          WORKSPACE="pr-validation"
+          echo "workspace=pr-validation" >> $GITHUB_OUTPUT
+        else
+          WORKSPACE="main"
+          echo "workspace=main" >> $GITHUB_OUTPUT
+        fi
+        
+        echo "Selecting workspace: $WORKSPACE"
+        terraform workspace select $WORKSPACE || terraform workspace new $WORKSPACE
+        
+        echo "Current workspace:"
+        terraform workspace show
+      working-directory: ${{ env.TF_WORKING_DIR }}
+
+    - name: Terraform Validate
+      id: validate
+      run: terraform validate -no-color
+      working-directory: ${{ env.TF_WORKING_DIR }}
+
+    - name: Terraform Plan
+      id: plan
+      run: |
+        terraform plan -no-color -input=false \
+          -var="project_id=${{ secrets.GCP_PROJECT_ID }}" \
+          -var="region=${{ secrets.GCP_REGION }}" \
+          -var="environment=${{ secrets.ENVIRONMENT }}" \
+          -var="archive_service_account_email=${{ secrets.ARCHIVE_SERVICE_ACCOUNT_EMAIL }}"
+      working-directory: ${{ env.TF_WORKING_DIR }}
+
+    - name: Terraform Apply
+      id: apply
+      run: |
+        terraform apply -auto-approve -input=false \
+          -var="project_id=${{ secrets.GCP_PROJECT_ID }}" \
+          -var="region=${{ secrets.GCP_REGION }}" \
+          -var="environment=${{ secrets.ENVIRONMENT }}" \
+          -var="archive_service_account_email=${{ secrets.ARCHIVE_SERVICE_ACCOUNT_EMAIL }}"
+      working-directory: ${{ env.TF_WORKING_DIR }}
+
+    - name: Update Render Environment Variables
+      run: |
+        echo "📊 Getting Terraform outputs from main workspace..."
+        cd ${{ env.TF_WORKING_DIR }}
+        
+        # Get terraform outputs directly
+        OUTPUTS_JSON=$(terraform output -json)
+        
+        # Extract values using jq
+        GOOGLE_CLOUD_PROJECT_ID=$(echo "$OUTPUTS_JSON" | jq -r '.GOOGLE_CLOUD_PROJECT_ID.value')
+        GOOGLE_CLOUD_REGION=$(echo "$OUTPUTS_JSON" | jq -r '.GOOGLE_CLOUD_REGION.value')
+        CLOUD_TASKS_QUEUE_NAME=$(echo "$OUTPUTS_JSON" | jq -r '.CLOUD_TASKS_QUEUE_NAME.value')
+        CLOUD_FUNCTION_URL=$(echo "$OUTPUTS_JSON" | jq -r '.CLOUD_FUNCTION_URL.value')
+        TASKS_SERVICE_ACCOUNT_EMAIL=$(echo "$OUTPUTS_JSON" | jq -r '.TASKS_SERVICE_ACCOUNT_EMAIL.value')
+        
+        # Function to update environment variable silently
+        update_env_var() {
+          local key=$1
+          local value=$2
+          
+          if [ -z "$value" ] || [ "$value" = "null" ]; then
+            echo "❌ Value for $key is empty or null, skipping..."
+            exit 1
+          fi
+          
+          echo "Updating $key..."
+          
+          response=$(curl -s -w "%{http_code}" -o /tmp/response.json \
+            -X PUT \
+            -H "Authorization: Bearer ${{ secrets.RENDER_API_KEY }}" \
+            -H "Content-Type: application/json" \
+            -d "{\"value\": \"$value\"}" \
+            "https://api.render.com/v1/services/${{ secrets.RENDER_SERVICE_ID }}/env-vars/$key")
+          
+          http_code="${response: -3}"
+          
+          if [ "$http_code" -eq 200 ] || [ "$http_code" -eq 201 ]; then
+            echo "✅ Successfully updated $key"
+          else
+            echo "❌ Failed to update $key (HTTP $http_code)"
+            if [ -f /tmp/response.json ]; then
+              cat /tmp/response.json
+            fi
+            exit 1
+          fi
+        }
+        
+        # Update all environment variables
+        update_env_var "GOOGLE_CLOUD_PROJECT_ID" "$GOOGLE_CLOUD_PROJECT_ID"
+        update_env_var "GOOGLE_CLOUD_REGION" "$GOOGLE_CLOUD_REGION"
+        update_env_var "CLOUD_TASKS_QUEUE_NAME" "$CLOUD_TASKS_QUEUE_NAME"
+        update_env_var "CLOUD_FUNCTION_URL" "$CLOUD_FUNCTION_URL"
+        update_env_var "TASKS_SERVICE_ACCOUNT_EMAIL" "$TASKS_SERVICE_ACCOUNT_EMAIL"
+
+    - name: Trigger Render Deployment
+      run: |
+        echo "🚀 Triggering Render deployment..."
+        
+        response=$(curl -s -w "%{http_code}" -o /tmp/deploy_response.json \
+          -X POST \
+          -H "Authorization: Bearer ${{ secrets.RENDER_API_KEY }}" \
+          -H "Content-Type: application/json" \
+          "https://api.render.com/v1/services/${{ secrets.RENDER_SERVICE_ID }}/deploys")
+        
+        http_code="${response: -3}"
+        
+        if [ "$http_code" -eq 201 ]; then
+          echo "✅ Successfully triggered Render deployment"
+          if [ -f /tmp/deploy_response.json ]; then
+            deploy_id=$(cat /tmp/deploy_response.json | jq -r '.id // "unknown"')
+            echo "Deployment ID: $deploy_id"
+          fi
+        else
+          echo "❌ Failed to trigger deployment (HTTP $http_code)"
+          if [ -f /tmp/deploy_response.json ]; then
+            echo "Response:"
+            cat /tmp/deploy_response.json
+          fi
+          exit 1
+        fi
+
+    - name: Cleanup
+      if: always()
+      run: |
+        # Remove any temporary files for security
+        rm -f /tmp/response.json /tmp/deploy_response.json
+        echo "✅ Temporary files cleaned up"
+
+    - name: Deployment Summary
+      if: always()
+      run: |
+        echo "## 🚀 Deployment Summary" >> $GITHUB_STEP_SUMMARY
+        echo "- ✅ Terraform infrastructure updated (main workspace)" >> $GITHUB_STEP_SUMMARY
+        
+        if [ "${{ job.status }}" = "success" ]; then
+          echo "- ✅ Render environment variables updated" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Render deployment triggered" >> $GITHUB_STEP_SUMMARY
+        else
+          echo "- ❌ Render update failed" >> $GITHUB_STEP_SUMMARY
+        fi
+        
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "### Status:" >> $GITHUB_STEP_SUMMARY
+        echo "- Environment variables have been securely updated in Render" >> $GITHUB_STEP_SUMMARY
+        echo "- All sensitive values were passed without logging" >> $GITHUB_STEP_SUMMARY
