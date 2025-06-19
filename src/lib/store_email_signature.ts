@@ -21,7 +21,9 @@ export async function processAndStoreEmailSignature(
 		const verificationResult = await verifyDKIMSignature(email, tags.d, true, true, true);
 	} catch (error) {
 		console.log(chalk.redBright('Error verifying DKIM signature:\n Domain: ', tags.d, '\n', error));
-		return;
+		if (error && typeof error === "string" && (error as any).includes("Reason: bad signature")) {
+			return;
+		}
 	}
 
 	/*
