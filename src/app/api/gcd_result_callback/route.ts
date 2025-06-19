@@ -5,7 +5,7 @@ import { pubKeyLength } from '@/lib/utils_server';
 import { prisma } from '@/lib/db';
 import { encodeRsaPkcs1Digest } from '@/lib/utils';
 
-export function verifyRsaPublicKey(
+function verifyRsaPublicKey(
   publicKeyHex: string,
   signatureBase64: string,
   messageDigestHex: string,
