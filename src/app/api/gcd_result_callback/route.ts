@@ -152,7 +152,7 @@ async function storeCalculationResult(data: {
       create: {
         domain: data.metadata.domain,
         selector: data.metadata.selector,
-        sourceIdentifier: 'Reverse engineered',
+        sourceIdentifier: 'api_auto',
         lastRecordUpdate: data.completedAt
       },
       update: {
@@ -167,10 +167,10 @@ async function storeCalculationResult(data: {
         firstSeenAt: data.completedAt,
         lastSeenAt: data.completedAt,
         provenanceVerified: true,
-        value: data.publicKey,
+        value: `p=${data.publicKey}`,
         keyType: 'RSA',
         keyData: data.publicKey,
-        source: 'Reverse engineered'
+        source: 'public_key_gcd_batch'
       }
     });
 
