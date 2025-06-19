@@ -69,14 +69,14 @@ resource "google_project_service" "required_apis" {
 
 # Create service account for Cloud Function
 resource "google_service_account" "function_sa" {
-  account_id   = "gcd-calculator-${local.resource_suffix}"
+  account_id   = "fn-${local.resource_suffix}"
   display_name = "gcd Calculator Cloud Function Service Account (${terraform.workspace})"
   description  = "Service account for gcd calculator cloud function in ${terraform.workspace} workspace"
 }
 
 # Create service account for Cloud Tasks
 resource "google_service_account" "tasks_sa" {
-  account_id   = "gcd-calculator-tasks-${local.resource_suffix}"
+  account_id   = "tasks-${local.resource_suffix}"
   display_name = "gcd Calculator Cloud Tasks Service Account (${terraform.workspace})"
   description  = "Service account for Cloud Tasks to invoke cloud function in ${terraform.workspace} workspace"
 }
