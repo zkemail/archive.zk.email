@@ -12,12 +12,27 @@ export interface GcdCalculationPayload {
 }
 
 export async function createGcdCalculationTask(payload: GcdCalculationPayload) {
-  const client = new CloudTasksClient();
+
+  let client: CloudTasksClient;
+  if (process.env.NODE_ENV !== 'development' && process.env.GOOGLE_APPLICATION_CREDENTIALS_JSON) {
+    // Parse the JSON credentials from environment variable
+    const credentials = JSON.parse(process.env.GOOGLE_APPLICATION_CREDENTIALS_JSON);
+    client = new CloudTasksClient({
+      credentials,
+      projectId: credentials.project_id,
+    });
+  } else {
+    // Use default credentials for local development
+    client = new CloudTasksClient();
+  }
+
   const headersList = headers();
   const host = headersList.get('host');
-  const baseUrl = process.env.NODE_ENV === 'development' ? 'https://use-ngrok.ngrok-free.app' : `https://${host}`;
+  const baseUrl = process.env.NODE_ENV === 'development'
+    ? 'https://use-ngrok.ngrok-free.app'
+    : `https://${host}`;
 
-  // Configuration - these should come from environment variables
+  // Rest of your code remains the same...
   const PROJECT_ID = process.env.GOOGLE_CLOUD_PROJECT_ID || '';
   const LOCATION = process.env.GOOGLE_CLOUD_REGION || 'us-central1';
   const QUEUE_NAME = process.env.CLOUD_TASKS_QUEUE_NAME || '';
@@ -28,7 +43,6 @@ export async function createGcdCalculationTask(payload: GcdCalculationPayload) {
   try {
     const { s1, s2, em1, em2, taskId, metadata } = payload;
 
-    // Validate required parameters
     if (!s1 || !s2 || !em1 || !em2) {
       throw new Error('Missing required parameters: s1, s2, em1, em2');
     }
@@ -41,7 +55,6 @@ export async function createGcdCalculationTask(payload: GcdCalculationPayload) {
       throw new Error('TASKS_SERVICE_ACCOUNT_EMAIL environment variable not set');
     }
 
-    // Create task payload
     const taskPayload = {
       s1: s1.toString(),
       s2: s2.toString(),
@@ -52,7 +65,6 @@ export async function createGcdCalculationTask(payload: GcdCalculationPayload) {
       metadata: metadata || {}
     };
 
-    // Construct queue name
     const parent = client.queuePath(PROJECT_ID, LOCATION, QUEUE_NAME);
 
     const task = {
@@ -82,6 +94,7 @@ export async function createGcdCalculationTask(payload: GcdCalculationPayload) {
 
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+    console.error('Task creation error:', errorMessage);
     throw new Error(`Failed to create task: ${errorMessage}`);
   }
 }
