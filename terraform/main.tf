@@ -1,5 +1,12 @@
 terraform {
   required_version = ">= 1.0"
+
+  # Add remote state backend with workspace support
+  backend "gcs" {
+    bucket  = "terraform-state-archive"
+    prefix  = "terraform/state"
+  }
+  
   required_providers {
     google = {
       source  = "hashicorp/google"
@@ -12,6 +19,30 @@ terraform {
   }
 }
 
+# Local values for workspace-specific configurations
+locals {
+  # Map workspace names to environment configurations
+  workspace_config = {
+    "pr-validation" = {
+      environment = "staging"
+      suffix      = "pr"
+    }
+    "main" = {
+      environment = "prod"
+      suffix      = "prod"
+    }
+  }
+  
+  # Get current workspace config
+  current_config = local.workspace_config[terraform.workspace]
+  
+  # Use workspace-specific environment or fall back to var.environment
+  environment = local.current_config != null ? local.current_config.environment : var.environment
+  suffix      = local.current_config != null ? local.current_config.suffix : "dev"
+  
+  # Workspace-specific resource naming
+  resource_suffix = "${local.environment}-${local.suffix}"
+}
 
 # Provider configuration
 provider "google" {
@@ -38,16 +69,16 @@ resource "google_project_service" "required_apis" {
 
 # Create service account for Cloud Function
 resource "google_service_account" "function_sa" {
-  account_id   = "gcd-calculator-${var.environment}"
-  display_name = "gcd Calculator Cloud Function Service Account"
-  description  = "Service account for gcd calculator cloud function"
+  account_id   = "gcd-calculator-${local.resource_suffix}"
+  display_name = "gcd Calculator Cloud Function Service Account (${terraform.workspace})"
+  description  = "Service account for gcd calculator cloud function in ${terraform.workspace} workspace"
 }
 
 # Create service account for Cloud Tasks
 resource "google_service_account" "tasks_sa" {
-  account_id   = "gcd-calculator-tasks-${var.environment}"
-  display_name = "gcd Calculator Cloud Tasks Service Account"
-  description  = "Service account for Cloud Tasks to invoke cloud function"
+  account_id   = "gcd-calculator-tasks-${local.resource_suffix}"
+  display_name = "gcd Calculator Cloud Tasks Service Account (${terraform.workspace})"
+  description  = "Service account for Cloud Tasks to invoke cloud function in ${terraform.workspace} workspace"
 }
 
 # IAM bindings for function service account
@@ -79,7 +110,7 @@ resource "google_project_iam_member" "nextjs_tasks_enqueuer" {
 
 # Create Cloud Storage bucket for function source
 resource "google_storage_bucket" "function_source" {
-  name                        = "${var.project_id}-gcd-calculator-source-${var.environment}"
+  name                        = "${var.project_id}-gcd-calculator-source-${local.resource_suffix}"
   location                    = var.region
   force_destroy               = true
   uniform_bucket_level_access = true
@@ -101,7 +132,7 @@ resource "google_storage_bucket" "function_source" {
 # Create archive of cloud function source
 data "archive_file" "function_source" {
   type        = "zip"
-  output_path = "/tmp/gcd-calculator-function.zip"
+  output_path = "/tmp/gcd-calculator-function-${terraform.workspace}.zip"
   source_dir  = "../cloudFunctions/calculate_gcd"
   excludes = [
     "__pycache__",
@@ -112,7 +143,7 @@ data "archive_file" "function_source" {
 
 # Upload function source to bucket
 resource "google_storage_bucket_object" "function_source" {
-  name   = "gcd-calculator-function-${data.archive_file.function_source.output_md5}.zip"
+  name   = "gcd-calculator-function-${terraform.workspace}-${data.archive_file.function_source.output_md5}.zip"
   bucket = google_storage_bucket.function_source.name
   source = data.archive_file.function_source.output_path
 
@@ -121,9 +152,9 @@ resource "google_storage_bucket_object" "function_source" {
 
 # Create the Cloud Function
 resource "google_cloudfunctions2_function" "gcd_calculator" {
-  name        = "gcd-calculator-${var.environment}"
+  name        = "gcd-calculator-${local.resource_suffix}"
   location    = var.region
-  description = "gcd modulus calculator function"
+  description = "gcd modulus calculator function for ${terraform.workspace} workspace"
 
   build_config {
     runtime     = "python311"
@@ -145,7 +176,8 @@ resource "google_cloudfunctions2_function" "gcd_calculator" {
     available_cpu                    = "1"
 
     environment_variables = {
-      ENVIRONMENT = var.environment
+      ENVIRONMENT        = local.environment
+      TERRAFORM_WORKSPACE = terraform.workspace
     }
 
     ingress_settings               = "ALLOW_INTERNAL_AND_GCLB"
@@ -165,7 +197,7 @@ resource "random_id" "queue_suffix" {
 
 # Create Cloud Tasks queue
 resource "google_cloud_tasks_queue" "gcd_calculator_queue" {
-  name     = "gcd-calculator-queue-${var.environment}-${random_id.queue_suffix.hex}"
+  name     = "gcd-calculator-queue-${local.resource_suffix}-${random_id.queue_suffix.hex}"
   location = var.region
 
   rate_limits {

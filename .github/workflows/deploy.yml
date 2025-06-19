@@ -46,6 +46,24 @@ jobs:
       run: terraform init
       working-directory: ${{ env.TF_WORKING_DIR }}
 
+    - name: Select Terraform Workspace
+      id: workspace
+      run: |
+        if [ "${{ github.event_name }}" = "pull_request" ]; then
+          WORKSPACE="pr-validation"
+          echo "workspace=pr-validation" >> $GITHUB_OUTPUT
+        else
+          WORKSPACE="main"
+          echo "workspace=main" >> $GITHUB_OUTPUT
+        fi
+        
+        echo "Selecting workspace: $WORKSPACE"
+        terraform workspace select $WORKSPACE || terraform workspace new $WORKSPACE
+        
+        echo "Current workspace:"
+        terraform workspace show
+      working-directory: ${{ env.TF_WORKING_DIR }}
+
     - name: Terraform Validate
       id: validate
       run: terraform validate -no-color
@@ -84,6 +102,7 @@ jobs:
         if [ -s outputs/terraform_outputs.json ]; then
           echo "✅ Terraform outputs saved successfully"
           echo "outputs_saved=true" >> $GITHUB_OUTPUT
+          echo "workspace=${{ steps.workspace.outputs.workspace }}" >> $GITHUB_OUTPUT
         else
           echo "❌ Failed to save terraform outputs"
           echo "outputs_saved=false" >> $GITHUB_OUTPUT
@@ -94,7 +113,7 @@ jobs:
     - name: Upload Terraform Outputs
       uses: actions/upload-artifact@v4
       with:
-        name: terraform-outputs
+        name: terraform-outputs-${{ steps.workspace.outputs.workspace }}
         path: terraform/outputs/terraform_outputs.json
         retention-days: 1
 
@@ -107,7 +126,7 @@ jobs:
     - name: Download Terraform Outputs
       uses: actions/download-artifact@v4
       with:
-        name: terraform-outputs
+        name: terraform-outputs-main
         path: ./outputs
 
     - name: Update Render Environment Variables
@@ -117,6 +136,8 @@ jobs:
           echo "❌ Terraform outputs file not found"
           exit 1
         fi
+        
+        echo "📊 Processing Terraform outputs from main workspace..."
         
         # Parse outputs from JSON file
         OUTPUTS_JSON=$(cat ./outputs/terraform_outputs.json)
@@ -169,7 +190,7 @@ jobs:
 
     - name: Trigger Render Deployment
       run: |
-        echo "Triggering Render deployment..."
+        echo "🚀 Triggering Render deployment..."
         
         response=$(curl -s -w "%{http_code}" -o /tmp/deploy_response.json \
           -X POST \
@@ -205,7 +226,7 @@ jobs:
       if: always()
       run: |
         echo "## 🚀 Deployment Summary" >> $GITHUB_STEP_SUMMARY
-        echo "- ✅ Terraform infrastructure updated" >> $GITHUB_STEP_SUMMARY
+        echo "- ✅ Terraform infrastructure updated (main workspace)" >> $GITHUB_STEP_SUMMARY
         
         if [ "${{ job.status }}" = "success" ]; then
           echo "- ✅ Render environment variables updated" >> $GITHUB_STEP_SUMMARY

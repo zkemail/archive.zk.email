@@ -59,14 +59,47 @@ jobs:
     - name: Setup Google Cloud CLI
       uses: google-github-actions/setup-gcloud@v2
 
+    - name: Terraform Format Check
+      id: fmt
+      run: terraform fmt -check -recursive
+      working-directory: ${{ env.TF_WORKING_DIR }}
+      continue-on-error: true
+
     - name: Terraform Init
       run: terraform init
+      working-directory: ${{ env.TF_WORKING_DIR }}
+
+    - name: Select Terraform Workspace
+      id: workspace
+      run: |
+        if [ "${{ github.event_name }}" = "pull_request" ]; then
+          WORKSPACE="pr-validation"
+          echo "workspace=pr-validation" >> $GITHUB_OUTPUT
+        else
+          WORKSPACE="main"
+          echo "workspace=main" >> $GITHUB_OUTPUT
+        fi
+        
+        echo "Selecting workspace: $WORKSPACE"
+        terraform workspace select $WORKSPACE || terraform workspace new $WORKSPACE
+        
+        echo "Current workspace:"
+        terraform workspace show
+        
+        echo "## 🏗️ Workspace Information" >> $GITHUB_STEP_SUMMARY
+        echo "**Selected Workspace:** $WORKSPACE" >> $GITHUB_STEP_SUMMARY
+        echo "**Operation Type:** ${{ github.event.inputs.action }}" >> $GITHUB_STEP_SUMMARY
+      working-directory: ${{ env.TF_WORKING_DIR }}
+
+    - name: Terraform Validate
+      id: validate
+      run: terraform validate -no-color
       working-directory: ${{ env.TF_WORKING_DIR }}
 
     - name: Terraform Plan
       if: github.event.inputs.action == 'plan'
       run: |
-        echo "## 📋 Terraform Plan" >> $GITHUB_STEP_SUMMARY
+        echo "## 📋 Terraform Plan (Workspace: ${{ steps.workspace.outputs.workspace }})" >> $GITHUB_STEP_SUMMARY
         terraform plan -no-color -input=false \
           -var="project_id=${{ secrets.GCP_PROJECT_ID }}" \
           -var="region=${{ secrets.GCP_REGION }}" \
@@ -82,7 +115,7 @@ jobs:
     - name: Terraform Apply
       if: github.event.inputs.action == 'apply'
       run: |
-        echo "## 🚀 Terraform Apply" >> $GITHUB_STEP_SUMMARY
+        echo "## 🚀 Terraform Apply (Workspace: ${{ steps.workspace.outputs.workspace }})" >> $GITHUB_STEP_SUMMARY
         terraform apply -auto-approve -input=false \
           -var="project_id=${{ secrets.GCP_PROJECT_ID }}" \
           -var="region=${{ secrets.GCP_REGION }}" \
@@ -90,12 +123,13 @@ jobs:
           -var="archive_service_account_email=${{ secrets.ARCHIVE_SERVICE_ACCOUNT_EMAIL }}" \
           | tee apply_output.txt
         
-        echo "✅ Infrastructure successfully applied" >> $GITHUB_STEP_SUMMARY
+        echo "✅ Infrastructure successfully applied in workspace: ${{ steps.workspace.outputs.workspace }}" >> $GITHUB_STEP_SUMMARY
         echo "" >> $GITHUB_STEP_SUMMARY
         echo "### Outputs:" >> $GITHUB_STEP_SUMMARY
         
         # Get and display outputs
         terraform output -json > outputs.json
+        echo "- **Workspace:** ${{ steps.workspace.outputs.workspace }}" >> $GITHUB_STEP_SUMMARY
         echo "- **Project ID:** $(terraform output -raw GOOGLE_CLOUD_PROJECT_ID)" >> $GITHUB_STEP_SUMMARY
         echo "- **Region:** $(terraform output -raw GOOGLE_CLOUD_REGION)" >> $GITHUB_STEP_SUMMARY
         echo "- **Queue Name:** $(terraform output -raw CLOUD_TASKS_QUEUE_NAME)" >> $GITHUB_STEP_SUMMARY
@@ -106,7 +140,7 @@ jobs:
     - name: Terraform Destroy Plan
       if: github.event.inputs.action == 'destroy'
       run: |
-        echo "## ⚠️ Terraform Destroy Plan" >> $GITHUB_STEP_SUMMARY
+        echo "## ⚠️ Terraform Destroy Plan (Workspace: ${{ steps.workspace.outputs.workspace }})" >> $GITHUB_STEP_SUMMARY
         terraform plan -destroy -no-color -input=false \
           -var="project_id=${{ secrets.GCP_PROJECT_ID }}" \
           -var="region=${{ secrets.GCP_REGION }}" \
@@ -122,7 +156,7 @@ jobs:
     - name: Terraform Destroy
       if: github.event.inputs.action == 'destroy'
       run: |
-        echo "## 💥 Terraform Destroy" >> $GITHUB_STEP_SUMMARY
+        echo "## 💥 Terraform Destroy (Workspace: ${{ steps.workspace.outputs.workspace }})" >> $GITHUB_STEP_SUMMARY
         terraform destroy -auto-approve -input=false \
           -var="project_id=${{ secrets.GCP_PROJECT_ID }}" \
           -var="region=${{ secrets.GCP_REGION }}" \
@@ -130,20 +164,59 @@ jobs:
           -var="archive_service_account_email=${{ secrets.ARCHIVE_SERVICE_ACCOUNT_EMAIL }}" \
           | tee destroy_output.txt
         
-        echo "💥 Infrastructure successfully destroyed" >> $GITHUB_STEP_SUMMARY
+        echo "💥 Infrastructure successfully destroyed in workspace: ${{ steps.workspace.outputs.workspace }}" >> $GITHUB_STEP_SUMMARY
         echo "" >> $GITHUB_STEP_SUMMARY
-        echo "⚠️ **All resources have been removed from GCP**" >> $GITHUB_STEP_SUMMARY
+        echo "⚠️ **All resources in workspace '${{ steps.workspace.outputs.workspace }}' have been removed from GCP**" >> $GITHUB_STEP_SUMMARY
       working-directory: ${{ env.TF_WORKING_DIR }}
 
-    - name: Update Render on Apply
+    - name: Save Terraform Outputs to File
+      id: save_outputs
       if: github.event.inputs.action == 'apply'
       run: |
+        # Create outputs directory
+        mkdir -p outputs
+        
+        # Get terraform outputs and save to file
+        terraform output -json > outputs/terraform_outputs.json
+        
+        # Verify file was created and contains data
+        if [ -s outputs/terraform_outputs.json ]; then
+          echo "✅ Terraform outputs saved successfully for workspace: ${{ steps.workspace.outputs.workspace }}"
+          echo "outputs_saved=true" >> $GITHUB_OUTPUT
+          echo "workspace=${{ steps.workspace.outputs.workspace }}" >> $GITHUB_OUTPUT
+        else
+          echo "❌ Failed to save terraform outputs"
+          echo "outputs_saved=false" >> $GITHUB_OUTPUT
+          exit 1
+        fi
+      working-directory: ${{ env.TF_WORKING_DIR }}
+
+    - name: Upload Terraform Outputs
+      if: github.event.inputs.action == 'apply'
+      uses: actions/upload-artifact@v4
+      with:
+        name: terraform-outputs-${{ steps.workspace.outputs.workspace }}
+        path: terraform/outputs/terraform_outputs.json
+        retention-days: 1
+
+    - name: Update Render on Apply
+      if: github.event.inputs.action == 'apply' && steps.workspace.outputs.workspace == 'main'
+      run: |
+        echo "## 🔄 Updating Render Environment" >> $GITHUB_STEP_SUMMARY
+        echo "Updating Render environment variables from workspace: ${{ steps.workspace.outputs.workspace }}" >> $GITHUB_STEP_SUMMARY
+        
         cd ${{ env.TF_WORKING_DIR }}
         
         # Function to update environment variable
         update_env_var() {
           local key=$1
           local value=$2
+          
+          if [ -z "$value" ] || [ "$value" = "null" ]; then
+            echo "❌ Value for $key is empty or null, skipping..."
+            echo "- ❌ $key: Value is empty or null" >> $GITHUB_STEP_SUMMARY
+            return 1
+          fi
           
           echo "Updating $key..."
           
@@ -158,8 +231,10 @@ jobs:
           
           if [ "$http_code" -eq 200 ] || [ "$http_code" -eq 201 ]; then
             echo "✅ Successfully updated $key"
+            echo "- ✅ $key: Updated successfully" >> $GITHUB_STEP_SUMMARY
           else
             echo "❌ Failed to update $key (HTTP $http_code)"
+            echo "- ❌ $key: Failed to update (HTTP $http_code)" >> $GITHUB_STEP_SUMMARY
             cat response.json
             return 1
           fi
@@ -184,23 +259,44 @@ jobs:
         
         if [ "$http_code" -eq 201 ]; then
           echo "✅ Successfully triggered Render deployment"
-          deploy_id=$(cat deploy_response.json | jq -r '.id')
+          deploy_id=$(cat deploy_response.json | jq -r '.id // "unknown"')
           echo "🚀 Render deployment triggered (ID: $deploy_id)" >> $GITHUB_STEP_SUMMARY
         else
           echo "❌ Failed to trigger deployment (HTTP $http_code)"
+          echo "❌ Failed to trigger Render deployment (HTTP $http_code)" >> $GITHUB_STEP_SUMMARY
           cat deploy_response.json
           exit 1
         fi
 
+    - name: Skip Render Update for Non-Main Workspace
+      if: github.event.inputs.action == 'apply' && steps.workspace.outputs.workspace != 'main'
+      run: |
+        echo "## ⏭️ Render Update Skipped" >> $GITHUB_STEP_SUMMARY
+        echo "Render environment variables are only updated from the 'main' workspace." >> $GITHUB_STEP_SUMMARY
+        echo "Current workspace: ${{ steps.workspace.outputs.workspace }}" >> $GITHUB_STEP_SUMMARY
+        echo "💡 To update Render, run this action from the main branch or switch to the 'main' workspace." >> $GITHUB_STEP_SUMMARY
+
     - name: Operation Summary
+      if: always()
       run: |
         echo "" >> $GITHUB_STEP_SUMMARY
         echo "---" >> $GITHUB_STEP_SUMMARY
         echo "**Operation:** ${{ github.event.inputs.action }}" >> $GITHUB_STEP_SUMMARY
+        echo "**Workspace:** ${{ steps.workspace.outputs.workspace }}" >> $GITHUB_STEP_SUMMARY
         echo "**Triggered by:** @${{ github.actor }}" >> $GITHUB_STEP_SUMMARY
         echo "**Timestamp:** $(date -u)" >> $GITHUB_STEP_SUMMARY
+        echo "**Backend:** GCS (terraform-state-archive-dev)" >> $GITHUB_STEP_SUMMARY
         
         if [ "${{ github.event.inputs.action }}" = "destroy" ]; then
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "⚠️ **WARNING:** All GCP resources have been destroyed. You will need to run 'apply' to recreate the infrastructure." >> $GITHUB_STEP_SUMMARY
+          echo "⚠️ **WARNING:** All GCP resources in workspace '${{ steps.workspace.outputs.workspace }}' have been destroyed." >> $GITHUB_STEP_SUMMARY
+          echo "You will need to run 'apply' to recreate the infrastructure in this workspace." >> $GITHUB_STEP_SUMMARY
+        fi
+        
+        if [ "${{ github.event.inputs.action }}" = "apply" ] && [ "${{ steps.workspace.outputs.workspace }}" = "main" ]; then
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "🔄 **Render Integration:** Environment variables updated and deployment triggered" >> $GITHUB_STEP_SUMMARY
+        elif [ "${{ github.event.inputs.action }}" = "apply" ]; then
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "ℹ️ **Render Integration:** Skipped (only runs for 'main' workspace)" >> $GITHUB_STEP_SUMMARY
         fi
