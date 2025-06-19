@@ -3,10 +3,10 @@ terraform {
 
   # Add remote state backend with workspace support
   backend "gcs" {
-    bucket  = "terraform-state-archive"
-    prefix  = "terraform/state"
+    bucket = "terraform-state-archive"
+    prefix = "terraform/state"
   }
-  
+
   required_providers {
     google = {
       source  = "hashicorp/google"
@@ -32,14 +32,14 @@ locals {
       suffix      = "prod"
     }
   }
-  
+
   # Get current workspace config
   current_config = local.workspace_config[terraform.workspace]
-  
+
   # Use workspace-specific environment or fall back to var.environment
   environment = local.current_config != null ? local.current_config.environment : var.environment
   suffix      = local.current_config != null ? local.current_config.suffix : "dev"
-  
+
   # Workspace-specific resource naming
   resource_suffix = "${local.environment}-${local.suffix}"
 }
@@ -176,7 +176,7 @@ resource "google_cloudfunctions2_function" "gcd_calculator" {
     available_cpu                    = "1"
 
     environment_variables = {
-      ENVIRONMENT        = local.environment
+      ENVIRONMENT         = local.environment
       TERRAFORM_WORKSPACE = terraform.workspace
     }
 
