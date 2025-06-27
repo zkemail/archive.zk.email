@@ -137,10 +137,17 @@ export async function processAndStoreEmailSignature(
 			const headerHashBuffer1 = Buffer.from(headerHash, "hex");
 			const headerHashBuffer2 = Buffer.from(dsp.headerHashV2 || '', "hex");
 
-			// TODO: handle case what if the signing algo doesn't match
+			// Handle case where the signing algorithms do not match
+			if (signingAlgorithm !== (dsp.signingAlgorithm?.toLowerCase() || "rsa-sha256")) {
+				console.log(chalk.red(`Signing algorithm mismatch: Current(${signingAlgorithm}) vs DSP(${dsp.signingAlgorithm})`));
+				return;
+			}
 			const encodedMessageDigest1 = encodeRsaPkcs1Digest(headerHashBuffer1, signingAlgorithm, keySizeBytes).toString();
 			const encodedMessageDigest2 = encodeRsaPkcs1Digest(headerHashBuffer2, signingAlgorithm, keySizeBytes).toString();
 			const taskId = crypto.randomBytes(16).toString('hex').toString();
+
+			const timestamp1 = (!dsp.timestamp || (timestamp && timestamp < dsp.timestamp)) ? timestamp : dsp.timestamp;
+			const timestamp2 = (!dsp.timestamp || (timestamp && timestamp < dsp.timestamp)) ? dsp.timestamp : timestamp;
 			const metadata = {
 				domain,
 				selector,
@@ -148,7 +155,8 @@ export async function processAndStoreEmailSignature(
 				dkimSignature1: dkimSignatureRaw,
 				headerHash2: dsp.headerHashV2,
 				dkimSignature2: dsp.dkimSignature,
-				timestamp,
+				timestamp1,
+				timestamp2,
 				signingAlgorithm
 			};
 

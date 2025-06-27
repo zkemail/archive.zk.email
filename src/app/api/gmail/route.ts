@@ -24,7 +24,6 @@ async function handleMessage(
     "utf-8"
   );
 
-  // Fix from here :- upto wherever you want to...
   const headers = parseEmailHeaderV2(decodedEmailRaw);
   if (!headers) {
     throw "missing headers";

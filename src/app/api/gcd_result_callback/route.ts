@@ -4,6 +4,7 @@ import chalk from "chalk";
 import { pubKeyLength } from '@/lib/utils_server';
 import { prisma } from '@/lib/db';
 import { encodeRsaPkcs1Digest } from '@/lib/utils';
+import { generateWitness } from '@/lib/generateWitness';
 
 function verifyRsaPublicKey(
   publicKeyHex: string,
@@ -164,9 +165,9 @@ async function storeCalculationResult(data: {
     const dkimRecord = await prisma.dkimRecord.create({
       data: {
         domainSelectorPairId: domainSelectorPair.id,
-        firstSeenAt: data.completedAt,
-        lastSeenAt: data.completedAt,
-        provenanceVerified: true,
+        firstSeenAt: data.metadata.timestamp1,
+        lastSeenAt: data.metadata.timestamp1,
+        provenanceVerified: false,
         value: `p=${data.publicKey}`,
         keyType: 'RSA',
         keyData: data.publicKey,
@@ -174,6 +175,7 @@ async function storeCalculationResult(data: {
       }
     });
 
+    generateWitness(domainSelectorPair, dkimRecord);
 
     // Find the email signature entries 
     const emailSignatureA = await prisma.emailSignature.findFirst({
