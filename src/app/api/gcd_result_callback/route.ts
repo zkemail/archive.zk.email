@@ -1,4 +1,4 @@
-// app/api/callback/route.ts (or pages/api/callback.ts for Pages Router)
+
 import forge from 'node-forge';
 import chalk from "chalk";
 import { pubKeyLength } from '@/lib/utils_server';
@@ -89,24 +89,13 @@ export async function POST(request: Request) {
       await storeCalculationResult({
         taskId,
         result,
-        status: 'completed',
         completedAt: new Date(),
         metadata,
         publicKey
       });
 
     } else {
-      console.error(`Task ${taskId} failed:`, error);
-
-      // Store the error in your database
-      await storeCalculationResult({
-        taskId,
-        error,
-        status: 'failed',
-        completedAt: new Date(),
-        metadata
-      });
-
+      console.log(chalk.red(`Task ${taskId} failed: ${error} Failed to store calculation result for task`));
     }
 
     return Response.json({
@@ -125,20 +114,14 @@ export async function POST(request: Request) {
   }
 }
 
-// Add this function to route.ts
 async function storeCalculationResult(data: {
   taskId: string;
   result?: string;
   error?: string;
-  status: 'completed' | 'failed';
   completedAt: Date;
   metadata?: any;
   publicKey?: any
 }) {
-  if (data.status === 'failed' || !data.result) {
-    console.log(chalk.red(`Failed to store calculation result for task ${data.taskId}: ${data.error}`));
-    return;
-  }
 
   try {
     const domainSelectorPair = await prisma.domainSelectorPair.upsert({
@@ -161,19 +144,42 @@ async function storeCalculationResult(data: {
       }
     });
 
-
-    const dkimRecord = await prisma.dkimRecord.create({
-      data: {
+    let dkimRecord = await prisma.dkimRecord.findFirst({
+      where: {
         domainSelectorPairId: domainSelectorPair.id,
-        firstSeenAt: data.metadata.timestamp1,
-        lastSeenAt: data.metadata.timestamp1,
-        provenanceVerified: false,
-        value: `p=${data.publicKey}`,
-        keyType: 'RSA',
-        keyData: data.publicKey,
-        source: 'public_key_gcd_batch'
+        keyData: data.publicKey
       }
     });
+
+    if (dkimRecord) {
+      const newFirstSeenAt = new Date(
+        Math.min(new Date(dkimRecord.firstSeenAt!).getTime(), new Date(data.metadata.timestamp1).getTime())
+      );
+      const newLastSeenAt = new Date(
+        Math.max(new Date(dkimRecord.lastSeenAt!).getTime(), new Date(data.metadata.timestamp2).getTime())
+      );
+
+      dkimRecord = await prisma.dkimRecord.update({
+        where: { id: dkimRecord.id },
+        data: {
+          firstSeenAt: newFirstSeenAt,
+          lastSeenAt: newLastSeenAt
+        }
+      });
+    } else {
+      dkimRecord = await prisma.dkimRecord.create({
+        data: {
+          domainSelectorPairId: domainSelectorPair.id,
+          firstSeenAt: data.metadata.timestamp1,
+          lastSeenAt: data.metadata.timestamp2,
+          provenanceVerified: false,
+          value: `p=${data.publicKey}`,
+          keyType: 'RSA',
+          keyData: data.publicKey,
+          source: 'public_key_gcd_cloud_function'
+        }
+      });
+    }
 
     generateWitness(domainSelectorPair, dkimRecord);
 
