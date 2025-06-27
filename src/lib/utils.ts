@@ -180,7 +180,7 @@ export function truncate(s: string, maxLength: number) {
 	}
 }
 
-export const DspSourceIdentifiers = ['top_1m_lookup', 'api', 'selector_guesser', 'seed', 'try_selectors', 'api_auto', 'scraper', 'public_key_gcd_batch', 'unknown'] as const;
+export const DspSourceIdentifiers = ['top_1m_lookup', 'api', 'selector_guesser', 'seed', 'try_selectors', 'api_auto', 'scraper', 'public_key_gcd_batch', 'public_key_gcd_cloud_function', 'unknown'] as const;
 export type DspSourceIdentifier = typeof DspSourceIdentifiers[number];
 
 export function stringToDspSourceIdentifier(s: string): DspSourceIdentifier {
@@ -191,7 +191,7 @@ export function stringToDspSourceIdentifier(s: string): DspSourceIdentifier {
 	return 'unknown';
 }
 
-export const KeySourceIdentifiers = ['public_key_gcd_batch', 'unknown'] as const;
+export const KeySourceIdentifiers = ['public_key_gcd_batch', 'public_key_gcd_cloud_function', 'unknown'] as const;
 export type KeySourceIdentifier = typeof KeySourceIdentifiers[number];
 
 export function stringToKeySourceIdentifier(s: string): KeySourceIdentifier {
@@ -204,35 +204,39 @@ export function stringToKeySourceIdentifier(s: string): KeySourceIdentifier {
 
 
 export function dspSourceIdentifierToHumanReadable(sourceIdentifierStr: string) {
-	switch (stringToDspSourceIdentifier(sourceIdentifierStr)) {
-		case 'top_1m_lookup':
-		case 'scraper':
-			return 'Scraped';
-		case 'api':
-			return 'Inbox upload';
-		case 'api_auto':
-			return 'Inbox upload';
-		case 'selector_guesser':
-			return 'Selector guesser';
-		case 'seed':
-			return 'Seed';
-		case 'try_selectors':
-			return 'Try selectors';
-		case 'public_key_gcd_batch':
-			return 'Mail archive';
-		case 'unknown':
-			return 'Unknown';
-	}
+  switch (stringToDspSourceIdentifier(sourceIdentifierStr)) {
+    case 'top_1m_lookup':
+    case 'scraper':
+      return 'Scraped';
+    case 'api':
+      return 'Inbox upload';
+    case 'api_auto':
+      return 'Inbox upload';
+    case 'selector_guesser':
+      return 'Selector guesser';
+    case 'seed':
+      return 'Seed';
+    case 'try_selectors':
+      return 'Try selectors';
+    case 'public_key_gcd_batch':
+      return 'Mail archive';
+    case 'public_key_gcd_cloud_function':
+      return 'Inbox upload';
+    case 'unknown':
+      return 'Unknown';
+  }
 }
 
 
 export function keySourceIdentifierToHumanReadable(sourceIdentifierStr: string) {
-	switch (stringToKeySourceIdentifier(sourceIdentifierStr)) {
-		case 'public_key_gcd_batch':
-			return 'Reverse engineered';
-		case 'unknown':
-			return 'Unknown';
-	}
+  switch (stringToKeySourceIdentifier(sourceIdentifierStr)) {
+    case 'public_key_gcd_batch':
+      return 'Reverse engineered';
+    case 'public_key_gcd_cloud_function':
+      return 'Reverse engineered';
+    case 'unknown':
+      return 'Unknown';
+  }
 }
 
 export function parseEmailHeader(
