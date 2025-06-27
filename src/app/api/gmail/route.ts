@@ -58,7 +58,7 @@ async function handleMessage(
     }
     const addResult = await addDomainSelectorPair(domain, selector, "api");
 
-    // If DNS check fails, and dkim key is not in DB, we calcualte gcd via calling the processAndStoreEmailSignature function else we store the email signature
+    // If DNS check fails, and dkim key is not in DB, we calculate gcd via calling the processAndStoreEmailSignature function else we store the email signature
     await processAndStoreEmailSignature(
       headers,
       dkimSig,
