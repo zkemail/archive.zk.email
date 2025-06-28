@@ -87,18 +87,46 @@ export async function processAndStoreEmailSignature(
 	*/
 
 	// check if Doamin-selector pair is already present in EmailSignature table
-	const dsp = await prisma.emailSignature.findFirst({
-		where: {
-			domain: {
-				equals: domain,
-				mode: Prisma.QueryMode.insensitive,
+
+	// Fetching future and past DSPs for the given domain and selector.
+	const [futureDsps, pastDsps] = await prisma.$transaction([
+		prisma.emailSignature.findMany({
+			where: {
+				domain: {
+					equals: domain,
+					mode: Prisma.QueryMode.insensitive,
+				},
+				selector: {
+					equals: selector,
+					mode: Prisma.QueryMode.insensitive
+				},
+				timestamp: {
+					gt: timestamp || undefined,
+				},
 			},
-			selector: {
-				equals: selector,
-				mode: Prisma.QueryMode.insensitive
-			}
-		}
-	});
+			take: 2,
+		}),
+		prisma.emailSignature.findMany({
+			where: {
+				domain: {
+					equals: domain,
+					mode: Prisma.QueryMode.insensitive,
+				},
+				selector: {
+					equals: selector,
+					mode: Prisma.QueryMode.insensitive
+				},
+				timestamp: {
+					lt: timestamp || undefined,
+				},
+			},
+			take: 2,
+		})
+	]);
+
+	// The combined results will have up to 4 records.
+	const dsps = [...futureDsps, ...pastDsps];
+	console.log(chalk.blue(`Found ${dsps.length} DSPs for domain: ${domain}, selector: ${selector}`));
 
 	// Check hash And Signature Exists
 	const hashAndSignatureExists = await prisma.emailSignature.findFirst({
@@ -126,24 +154,34 @@ export async function processAndStoreEmailSignature(
 
 	// AddResult checks if we got the Public Key via DNS query or it already existed in DB, if not we calculate the GCD
 	if (!addResult.added && !addResult.already_in_db) {
-		if (!dsp) { console.log(chalk.red(`No DSP exist: Domain: ${domain}, Selector: ${selector}, Can't check GCD`)); return; }
-		else {
-			// Converting the signature into big int for gcd calculation
-			const signature1 = BigInt(`0x${Buffer.from(dkimSignatureRaw, 'base64').toString('hex')}`).toString();
-			const signature2 = BigInt(`0x${Buffer.from(dsp.dkimSignature, 'base64').toString('hex')}`).toString();
+		if (dsps.length === 0) {
+			console.log(chalk.red(`No existing DSPs found for domain: ${domain}, selector: ${selector}. Can't check for GCD.`));
+			return;
+		}
 
-			const keySizeBytes = pubKeyLength(dkimSignatureRaw);
+		// Calculating the signature and encoded message digest for the current email.
+		const signature1 = BigInt(`0x${Buffer.from(dkimSignatureRaw, 'base64').toString('hex')}`).toString();
+		const keySizeBytes = pubKeyLength(dkimSignatureRaw);
+		const headerHashBuffer1 = Buffer.from(headerHash, "hex");
+		const encodedMessageDigest1 = encodeRsaPkcs1Digest(headerHashBuffer1, signingAlgorithm, keySizeBytes).toString();
 
-			// Converting header hashes into buffer and then into bigint for calculation
-			const headerHashBuffer1 = Buffer.from(headerHash, "hex");
-			const headerHashBuffer2 = Buffer.from(dsp.headerHashV2 || '', "hex");
+		// Loop through each found DSP to create a GCD calculation task against the current email.
+		for (const dsp of dsps) {
+			// Ensure the database record has the required fields.
+			if (!dsp.dkimSignature || !dsp.headerHashV2) {
+				console.log(chalk.yellow(`Skipping DSP id ${dsp.id} due to missing dkimSignature or headerHashV2.`));
+				continue;
+			}
 
 			// Handle case where the signing algorithms do not match
 			if (signingAlgorithm !== (dsp.signingAlgorithm?.toLowerCase() || "rsa-sha256")) {
-				console.log(chalk.red(`Signing algorithm mismatch: Current(${signingAlgorithm}) vs DSP(${dsp.signingAlgorithm})`));
-				return;
+				console.log(chalk.red(`Signing algorithm mismatch for DSP id ${dsp.id}: Current(${signingAlgorithm}) vs DSP(${dsp.signingAlgorithm})`));
+				continue;
 			}
-			const encodedMessageDigest1 = encodeRsaPkcs1Digest(headerHashBuffer1, signingAlgorithm, keySizeBytes).toString();
+
+			// Calculating the signature and encoded message digest for the DSP.
+			const signature2 = BigInt(`0x${Buffer.from(dsp.dkimSignature, 'base64').toString('hex')}`).toString();
+			const headerHashBuffer2 = Buffer.from(dsp.headerHashV2, "hex");
 			const encodedMessageDigest2 = encodeRsaPkcs1Digest(headerHashBuffer2, signingAlgorithm, keySizeBytes).toString();
 			const taskId = crypto.randomBytes(16).toString('hex').toString();
 
@@ -163,8 +201,8 @@ export async function processAndStoreEmailSignature(
 
 			const payload: GcdCalculationPayload = { s1: signature1, s2: signature2, em1: encodedMessageDigest1, em2: encodedMessageDigest2, taskId, metadata };
 
-			await createGcdCalculationTask(payload)
+			await createGcdCalculationTask(payload);
+			console.log(chalk.green(`Created GCD calculation task for DSP id ${dsp.id}.`));
 		}
-
 	}
 }
