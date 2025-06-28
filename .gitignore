@@ -33,3 +33,7 @@ npm-debug.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+.terraform*
+terraform.*
+!terraform.tfvars.example
