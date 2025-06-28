@@ -32,7 +32,7 @@ export async function createGcdCalculationTask(payload: GcdCalculationPayload) {
     ? 'https://use-ngrok.ngrok-free.app'
     : `https://${host}`;
 
-  // Rest of your code remains the same...
+
   const PROJECT_ID = process.env.GOOGLE_CLOUD_PROJECT_ID || '';
   const LOCATION = process.env.GOOGLE_CLOUD_REGION || 'us-central1';
   const QUEUE_NAME = process.env.CLOUD_TASKS_QUEUE_NAME || '';

@@ -17,7 +17,7 @@ export async function processAndStoreEmailSignature(
 	addResult: AddResult
 ) {
 	try {
-		// This verificationResult tells weather we can bad signature or not,
+		// This verificationResult tells us if the DKIM signature has bad signature or not.
 		const verificationResult = await verifyDKIMSignature(email, tags.d, true, true, true);
 	} catch (error) {
 		console.log(chalk.redBright('Error verifying DKIM signature:\n Domain: ', tags.d, '\n', error));
@@ -78,17 +78,15 @@ export async function processAndStoreEmailSignature(
 
 
 	/*
-	Basic run down of below Steps :-
-	1. Check hash And Signature Exists
-	2. Check if dsp exist or not
-	3. If it doesn't exist we directly store in DB, since we can't check for GCD with one dsp value
-	4. We check if public Key already existed in DB or got via DNS query, if not we calculate the GCD
-	5. If if public key doesn't existed in DB or didn't received via DNS query, we calculate and store it in database.
+	Basic rundown of the steps below:
+	1. Check if the hash and signature exist.
+	2. Check if the DSP exists or not.
+	3. If it doesn't exist, we directly store it in the DB, since we can't check for GCD with only one DSP value.
+	4. We check if the public key already exists in the DB or was obtained via DNS query; if not, we calculate the GCD.
+	5. If the public key doesn't exist in the DB and wasn't received via DNS query, we calculate and store it in the database.
 	*/
 
-	// check if Doamin-selector pair is already present in EmailSignature table
-
-	// Fetching future and past DSPs for the given domain and selector.
+	// Fetching future and past DSPs for the given domain and selector, if exist.
 	const [futureDsps, pastDsps] = await prisma.$transaction([
 		prisma.emailSignature.findMany({
 			where: {
