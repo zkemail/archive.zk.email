@@ -204,10 +204,20 @@ export default function Page() {
 	}
 
 	function constructGmailQuery(startDate?: string, endDate?: string, domain?: string) {
-		// TODO: compare the dates and show toaster to the user if it enters invalid date
 		const startDateGmail = formatDateForGmailQuery(startDate || '');
 		const endDateGmail = formatDateForGmailQuery(endDate || '');
+
+		if (startDate && endDate) {
+			const start = new Date(startDate);
+			const end = new Date(endDate);
+			if (end < start) {
+				console.error("endDate is smaller than startDate, Data is invalid");
+			} else {
+				console.log("Date is valid");
+			}
+		}
 		console.log('constructGmailQuery', startDateGmail, endDateGmail, domain);
+
 		const queryParts: string[] = [];
 	
 		
