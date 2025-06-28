@@ -83,6 +83,7 @@ export async function processAndStoreEmailSignature(
 	2. Check if dsp exist or not
 	3. If it doesn't exist we directly store in DB, since we can't check for GCD with one dsp value
 	4. We check if public Key already existed in DB or got via DNS query, if not we calculate the GCD
+	5. If if public key doesn't existed in DB or didn't received via DNS query, we calculate and store it in database.
 	*/
 
 	// check if Doamin-selector pair is already present in EmailSignature table
