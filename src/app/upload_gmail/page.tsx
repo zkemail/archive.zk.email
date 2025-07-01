@@ -8,6 +8,8 @@ import axios from "axios";
 import type { GmailResponse } from "../api/gmail/route";
 import { actionButtonStyle } from "@/components/styles";
 import googleButtonStyles from "./page.module.css";
+import DatePicker from "react-datepicker";
+import "react-datepicker/dist/react-datepicker.css";
 
 export default function Page() {
 
@@ -21,9 +23,42 @@ export default function Page() {
 	const [gmailQuery, setGmailQuery] = React.useState<string>('');
 	const [processedMessages, setProcessedMessages] = React.useState<number>(0);
 	const [totalMessages, setTotalMessages] = React.useState<number | null>(null);
-	const [startDate, setStartDate] = React.useState<string>('');
-	const [endDate, setEndDate] = React.useState<string>('');
+	const [startDate, setStartDate] = React.useState<Date | null>(null);
+	const [endDate, setEndDate] = React.useState<Date | null>(null);
 	const [domain, setDomain] = React.useState<string>('');
+
+  type Errors = {
+	start?: string;
+	end?: string;
+  };
+
+  const validate = () => {
+	const errs: Errors = {};
+	if (!startDate) {
+	  errs.start = "Start date is required";
+	}
+	if (!endDate) {
+	  errs.end = "End date is required";
+	}
+	if (startDate && endDate && endDate < startDate) {
+	  errs.end = "End date must be after start date";
+	}
+	return Object.keys(errs).length === 0;
+  };
+
+  const handleStartChange = (d: Date | null) => {
+	  setStartDate(d);
+	  if (!d ||  (isNaN(d.getTime()))) {
+		setStartDate(null);
+	}
+  };
+
+  const handleEndChange = (d: Date | null) => {
+	  setEndDate(d);
+	  if (!d || (isNaN(d.getTime()))) {
+		setEndDate(null);
+	  }
+  };
 
 	type ProgressState = 'Not started' | 'Running...' | 'Paused' | 'Interrupted' | 'Completed';
 	const [progressState, setProgressState] = React.useState<ProgressState>('Not started');
@@ -127,22 +162,20 @@ export default function Page() {
 				<div style={{ fontStyle: 'italic', color: '#555' }}>The following fields are optional:</div>
 				<label>
 					Start Date:
-					<input
-						type="date"
-						value={startDate}
-						onChange={(e) => setStartDate(e.target.value)}
-						placeholder="Start Date"
-						style={{ marginLeft: '0.5rem' }}
+					<DatePicker
+					selected={startDate}
+					onChange={handleStartChange}
+					placeholderText="DD/MM/YYYY"
+					dateFormat="dd/MM/yyyy"
 					/>
 				</label>
 				<label>
 					End Date:
-					<input
-						type="date"
-						value={endDate}
-						onChange={(e) => setEndDate(e.target.value)}
-						placeholder="End Date"
-						style={{ marginLeft: '0.5rem' }}
+					<DatePicker
+					selected={endDate}
+					onChange={handleEndChange}
+					placeholderText="DD/MM/YYYY"
+					dateFormat="dd/MM/yyyy"
 					/>
 				</label>
 				<label>
@@ -153,14 +186,16 @@ export default function Page() {
 						defaultValue={domain}
 						onBlur={handleDomainChange}
 						placeholder="Domain"
-						style={{ marginLeft: '0.5rem' }}
 					/>
 				</label>
 			</div>
 			<div>
 				{showStartButton && <button style={actionButtonStyle} onClick={() => {
-					constructGmailQuery(startDate, endDate, domain);
-					
+					constructGmailQuery(
+						startDate ? startDate.toISOString() : undefined,
+						endDate ? endDate.toISOString() : undefined,
+						domain
+					);
 				}}>Start</button>}
 				{showResumeButton && <button style={actionButtonStyle} onClick={() => {
 					uploadFromGmail(gmailQuery);
@@ -207,7 +242,7 @@ export default function Page() {
 		const startDateGmail = formatDateForGmailQuery(startDate || '');
 		const endDateGmail = formatDateForGmailQuery(endDate || '');
 
-		if (startDate && endDate) {
+		if (startDate && endDate && validate()) {
 			const start = new Date(startDate);
 			const end = new Date(endDate);
 			if (end < start) {

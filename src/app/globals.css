@@ -26,3 +26,7 @@ textarea::placeholder {
   opacity: 1;
   color: #aaa;
 }
+
+input {
+  margin-left: 0.5rem
+}
