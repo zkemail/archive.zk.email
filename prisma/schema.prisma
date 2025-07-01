@@ -55,8 +55,13 @@ model EmailSignature {
   canonInfo            String // info about what tool or library was used to generate the header hash
   email_A_in_gcd_pairs EmailPairGcdResult[] @relation(name: "gcdPairAsA")
   email_B_in_gcd_pairs EmailPairGcdResult[] @relation(name: "gcdPairAsB")
+  
+  @@index([headerHashV2, dkimSignature])
   @@index([domain, selector, timestamp])
+
+  @@unique([headerHashV2, dkimSignature])
 }
+
 
 model EmailPairGcdResult {
   emailSignatureA    EmailSignature @relation(name: "gcdPairAsA", fields: [emailSignatureA_id], references: [id])
