@@ -79,52 +79,12 @@ export async function processAndStoreEmailSignature(
 
 	/*
 	Basic rundown of the steps below:
-	1. Check if the hash and signature exist.
-	2. Check if the DSP exists or not.
-	3. If it doesn't exist, we directly store it in the DB, since we can't check for GCD with only one DSP value.
-	4. We check if the public key already exists in the DB or was obtained via DNS query; if not, we calculate the GCD.
-	5. If the public key doesn't exist in the DB and wasn't received via DNS query, we calculate and store it in the database.
+	1. Check if the hash and signature exist. If they do, we skip the rest of the processing and return early.
+	2. If it doesn't exist, we directly store it in the DB.
+	3. Check if the public key exists or we got it from DNS.
+	4. If not, we query other pairs from database, if we find any we calculate the GCD else we return.
 	*/
 
-	// Fetching future and past DSPs for the given domain and selector, if exist.
-	const [futureDsps, pastDsps] = await prisma.$transaction([
-		prisma.emailSignature.findMany({
-			where: {
-				domain: {
-					equals: domain,
-					mode: Prisma.QueryMode.insensitive,
-				},
-				selector: {
-					equals: selector,
-					mode: Prisma.QueryMode.insensitive
-				},
-				timestamp: {
-					gt: timestamp || undefined,
-				},
-			},
-			take: 2,
-		}),
-		prisma.emailSignature.findMany({
-			where: {
-				domain: {
-					equals: domain,
-					mode: Prisma.QueryMode.insensitive,
-				},
-				selector: {
-					equals: selector,
-					mode: Prisma.QueryMode.insensitive
-				},
-				timestamp: {
-					lt: timestamp || undefined,
-				},
-			},
-			take: 2,
-		})
-	]);
-
-	// The combined results will have up to 4 records.
-	const dsps = [...futureDsps, ...pastDsps];
-	console.log(chalk.blue(`Found ${dsps.length} DSPs for domain: ${domain}, selector: ${selector}`));
 
 	// Check hash And Signature Exists
 	const hashAndSignatureExists = await prisma.emailSignature.findFirst({
@@ -135,6 +95,7 @@ export async function processAndStoreEmailSignature(
 		console.log(chalk.yellow(`headerHash and Signature already exist in DB`));
 		return;
 	} else {
+		// If it doesn't exist, we directly store it in the DB.
 		await prisma.emailSignature.create({
 			data: {
 				domain,
@@ -149,9 +110,36 @@ export async function processAndStoreEmailSignature(
 		});
 	}
 
-
 	// AddResult checks if we got the Public Key via DNS query or it already existed in DB, if not we calculate the GCD
 	if (!addResult.added && !addResult.already_in_db) {
+		// Fetching future and past Email signature for the given domain and selector
+		const [futureEmailSigs, pastEmailSigs] = await Promise.all([
+			prisma.emailSignature.findMany({
+				where: {
+					domain: { equals: domain, mode: Prisma.QueryMode.insensitive },
+					selector: { equals: selector, mode: Prisma.QueryMode.insensitive },
+					timestamp: { gt: timestamp || undefined },
+				},
+				take: 1,
+				orderBy: { timestamp: 'asc' },
+			}),
+			prisma.emailSignature.findMany({
+				where: {
+					domain: { equals: domain, mode: Prisma.QueryMode.insensitive },
+					selector: { equals: selector, mode: Prisma.QueryMode.insensitive },
+					timestamp: { lt: timestamp || undefined },
+				},
+				take: 1,
+				orderBy: { timestamp: 'desc' },
+			}),
+		]);
+
+
+		// The combined results will have up to 4 records.
+		const dsps = [...futureEmailSigs, ...pastEmailSigs];
+		console.log(chalk.blue(`Found ${dsps.length} Email signatures for domain: ${domain}, selector: ${selector}`));
+
+
 		if (dsps.length === 0) {
 			console.log(chalk.red(`No existing DSPs found for domain: ${domain}, selector: ${selector}. Can't check for GCD.`));
 			return;
