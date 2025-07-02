@@ -87,9 +87,7 @@ export async function createGcdCalculationTask(payload: GcdCalculationPayload) {
 
     return {
       success: true,
-      taskName: response.name,
-      taskId: taskPayload.taskId,
-      message: 'Task created successfully. Result will be sent to callback URL.',
+      message: 'Task created successfully. Result will be sent to available shortly',
     };
 
   } catch (error) {

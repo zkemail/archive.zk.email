@@ -21,7 +21,7 @@ export type AddResult = {
 	added: boolean;
 }
 
-export type processResult = { success: boolean; taskName: string | null | undefined; taskId: string; message: string; }[] | { processResultError: string; } | undefined;
+export type processResult = { success: boolean; message: string; }[] | { processResultError: string; } | undefined;
 /**
  * @returns true iff a record was added
  */
