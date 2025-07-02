@@ -24,6 +24,7 @@ export async function processAndStoreEmailSignature(
 		console.timeEnd('verificationResult')
 	} catch (error) {
 		console.timeEnd('verificationResult')
+		console.timeEnd('processAndStoreEmailSignature')
 		console.log(chalk.redBright('Error verifying DKIM signature:\n Domain: ', tags.d, '\n', error));
 		if (
 			error instanceof Error &&
@@ -112,12 +113,14 @@ export async function processAndStoreEmailSignature(
 		console.timeEnd("insertOrIgnore");
 
 		if (result === 0) {
+			console.timeEnd('processAndStoreEmailSignature')
 			console.log(chalk.yellow(`headerHash and Signature already exist in DB`));
 			return { processResultError: "headerHash and Signature already exist in DB" };
 		} else {
 			console.log(chalk.green(`New email signature inserted successfully`));
 		}
 	} catch (error) {
+		console.timeEnd('processAndStoreEmailSignature')
 		console.timeEnd("insertOrIgnore");
 		throw error;
 	}
@@ -155,6 +158,7 @@ export async function processAndStoreEmailSignature(
 
 
 		if (dsps.length === 0) {
+			console.timeEnd('processAndStoreEmailSignature')
 			console.log(chalk.red(`No existing DSPs found for domain: ${domain}, selector: ${selector}. Can't check for GCD.`));
 			return { processResultError: "No existing DSPs found for domain,Can't check for GCD" };
 		}
@@ -206,6 +210,7 @@ export async function processAndStoreEmailSignature(
 			result.push(createGCDResult);
 			console.log(chalk.green(`Created GCD calculation task for DSP id ${dsp.id}.`));
 		}
+		console.timeEnd('processAndStoreEmailSignature')
 		return result;
 	}
 	console.timeEnd('processAndStoreEmailSignature')
