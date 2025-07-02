@@ -5,7 +5,7 @@ import { getToken } from "next-auth/jwt";
 import { getServerSession } from "next-auth/next";
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
-import { type AddResult, addDomainSelectorPair } from "@/lib/utils_server";
+import { type AddResult, addDomainSelectorPair, processResult } from "@/lib/utils_server";
 import { processAndStoreEmailSignature } from "@/lib/store_email_signature";
 import { headers } from 'next/headers';
 
@@ -59,7 +59,7 @@ async function handleMessage(
     const addResult = await addDomainSelectorPair(domain, selector, "api");
 
     // If DNS check fails, and dkim key is not in DB, we calculate gcd via calling the processAndStoreEmailSignature function else we store the email signature
-    await processAndStoreEmailSignature(
+    const processResult = await processAndStoreEmailSignature(
       headers,
       dkimSig,
       tags,
@@ -71,6 +71,7 @@ async function handleMessage(
     const domainSelectorPair = { domain, selector };
     resultArray.push({
       addResult,
+      processResult,
       domainSelectorPair,
       mailTimestamp: internalDate?.toString(),
     });
@@ -80,6 +81,7 @@ async function handleMessage(
 
 type AddDspResult = {
   addResult: AddResult;
+  processResult: processResult;
   domainSelectorPair: DomainAndSelector;
   mailTimestamp?: string;
 };

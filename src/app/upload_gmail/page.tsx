@@ -18,6 +18,7 @@ export default function Page() {
 	const { data: session, status, update } = useSession()
 	const [log, setLog] = React.useState<LogRecord[]>([]);
 	const [uploadedPairs, setUploadedPairs] = React.useState<Set<string>>(new Set());
+	const [queuePairs, setQueuePairs] = React.useState<Set<string>>(new Set());
 	const [addedPairs, setAddedPairs] = React.useState<number>(0);
 	const [nextPageToken, setNextPageToken] = React.useState<string>('');
 	const [gmailQuery, setGmailQuery] = React.useState<string>('');
@@ -216,6 +217,9 @@ export default function Page() {
 					<div>
 						Added domain/selector pairs: {addedPairs}
 					</div>
+					<div>
+						Added to queue for GCD calculation: {queuePairs.size}
+					</div>
 				</div>
 				<LogConsole log={log} setLog={setLog} />
 			</>}
@@ -287,6 +291,7 @@ export default function Page() {
 				const pair = addDspResult.domainSelectorPair;
 				const pairString = JSON.stringify(pair);
 				const timestamp = addDspResult.mailTimestamp;
+				
 				if (!uploadedPairs.has(pairString)) {
 					logmsg('new pair found: ' + JSON.stringify({ ...pair, timestamp }));
 					if (addDspResult.addResult.added) {
@@ -295,7 +300,30 @@ export default function Page() {
 					}
 					uploadedPairs.add(pairString);
 				}
-				setUploadedPairs(uploadedPairs => new Set(uploadedPairs).add(pairString));
+				if (
+					addDspResult.processResult &&
+					"processResultError" in addDspResult.processResult &&
+					addDspResult.processResult.processResultError
+				) {
+					logmsg(addDspResult.processResult.processResultError);
+				}
+				if (
+					Array.isArray(addDspResult.processResult) &&
+					addDspResult.processResult.every(item => typeof item === "object" && item !== null)
+				) {
+					setQueuePairs(queuePairs => {
+						const newSet = new Set(queuePairs);
+						if (Array.isArray(addDspResult.processResult)) {
+							addDspResult.processResult.forEach((item: any) => {
+								const itemString = JSON.stringify(item);
+								console.log("itemString", itemString);
+								newSet.add(itemString);
+								logmsg(itemString);
+							});
+						}
+						return newSet;
+					});
+				}
 			}
 			if (response.data.nextPageToken) {
 				setNextPageToken(response.data.nextPageToken);
