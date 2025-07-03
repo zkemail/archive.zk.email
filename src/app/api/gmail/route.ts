@@ -5,7 +5,7 @@ import { getToken } from "next-auth/jwt";
 import { getServerSession } from "next-auth/next";
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
-import { type AddResult, addDomainSelectorPair } from "@/lib/utils_server";
+import { type AddResult, addDomainSelectorPair, processResult } from "@/lib/utils_server";
 import { processAndStoreEmailSignature } from "@/lib/store_email_signature";
 import { headers } from 'next/headers';
 
@@ -59,7 +59,7 @@ async function handleMessage(
     const addResult = await addDomainSelectorPair(domain, selector, "api");
 
     // If DNS check fails, and dkim key is not in DB, we calculate gcd via calling the processAndStoreEmailSignature function else we store the email signature
-    await processAndStoreEmailSignature(
+    const processResult = await processAndStoreEmailSignature(
       headers,
       dkimSig,
       tags,
@@ -71,6 +71,7 @@ async function handleMessage(
     const domainSelectorPair = { domain, selector };
     resultArray.push({
       addResult,
+      processResult,
       domainSelectorPair,
       mailTimestamp: internalDate?.toString(),
     });
@@ -80,6 +81,7 @@ async function handleMessage(
 
 type AddDspResult = {
   addResult: AddResult;
+  processResult: processResult;
   domainSelectorPair: DomainAndSelector;
   mailTimestamp?: string;
 };
@@ -121,9 +123,17 @@ async function handleRequest(request: NextRequest) {
   const pageToken = request.nextUrl.searchParams.get("pageToken");
   const gmailQuery = request.nextUrl.searchParams.get("gmailQuery");
   const isFirstPage = !pageToken;
-  const messagesTotal = isFirstPage
-    ? (await gmail.users.getProfile({ userId: "me" })).data.messagesTotal
-    : null;
+
+  let messagesTotal = null;
+  if (isFirstPage) {
+    try {
+      const profileResponse = await gmail.users.getProfile({ userId: "me" });
+      messagesTotal = profileResponse.data.messagesTotal;
+    } catch (error) {
+      console.error("Error getting profile:", error);
+    }
+  }
+
   const messageTotalParam = messagesTotal ? { messagesTotal } : {};
 
   const listParams: any = {
@@ -139,7 +149,13 @@ async function handleRequest(request: NextRequest) {
     listParams.pageToken = pageToken;
   }
 
-  const listResults = await gmail.users.messages.list(listParams);
+  let listResults;
+  try {
+    listResults = await gmail.users.messages.list(listParams);
+  } catch (error: any) {
+    console.error("Error listing messages:", error);
+    listResults = { data: { messages: [], nextPageToken: null } };
+  }
 
   console.log("listResults", listResults);
 
@@ -155,7 +171,7 @@ async function handleRequest(request: NextRequest) {
     try {
       await handleMessage(message.id, gmail, addDspResults);
     } catch (e) {
-      console.log(`error handling message ${message.id}`, e);
+      console.log(`Error in handling message ${message.id}`, e);
     }
   }
   const nextPageToken = listResults.data.nextPageToken || null;
