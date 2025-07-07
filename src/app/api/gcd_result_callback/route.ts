@@ -16,6 +16,10 @@ function verifyRsaPublicKey(
   try {
     const keySizeBytes = pubKeyLength(signatureBase64);
 
+    if (publicKeyHex.length !== keySizeBytes * 2) {
+      console.error(`Public key length mismatch: expected ${keySizeBytes} hex characters, got ${publicKeyHex.length}`);
+      return false;
+    }
     // Encode the message digest as per PKCS#1 for the given algorithm
     const encodedDigest = encodeRsaPkcs1Digest(
       Buffer.from(messageDigestHex, "hex"),
