@@ -13,29 +13,10 @@ export async function processAndStoreEmailSignature(
 	dkimSignature: string,
 	tags: Record<string, string>,
 	timestamp: Date | null,
-	email: string,
-	addResult: AddResult
+	addResult: AddResult,
+	processResultBadSignatureError = false
 ) {
 	console.time('processAndStoreEmailSignature')
-	console.time('verificationResult')
-	let processResultBadSignatureError = false;
-	try {
-		// This verificationResult tells us if the DKIM signature has bad signature or not.
-		const verificationResult = await verifyDKIMSignature(email, tags.d, true, true, true);
-		console.timeEnd('verificationResult')
-	} catch (error) {
-		console.timeEnd('verificationResult')
-		console.timeEnd('processAndStoreEmailSignature')
-		console.log(chalk.redBright('Error verifying DKIM signature:\n Domain: ', tags.d, '\n', error));
-		if (
-			error instanceof Error &&
-			error.message &&
-			error.message.includes("bad signature")
-		) {
-			processResultBadSignatureError = true;
-		}
-	}
-
 	/*
 	Basic run down of below Steps :-
 	1. we will parse header and Signature values

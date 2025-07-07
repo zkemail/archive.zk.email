@@ -8,6 +8,8 @@ import type { NextRequest } from "next/server";
 import { type AddResult, addDomainSelectorPair, type ProcessResult } from "@/lib/utils_server";
 import { processAndStoreEmailSignature } from "@/lib/store_email_signature";
 import { headers } from 'next/headers';
+import { verifyDKIMSignature } from "@zk-email/helpers/dist/dkim";
+import chalk from "chalk";
 
 async function handleMessage(
   messageId: string,
@@ -56,16 +58,37 @@ async function handleMessage(
       console.log("missing s tag", tags);
       continue;
     }
-    const addResult = await addDomainSelectorPair(domain, selector, "api");
+    let addResult: AddResult = { already_in_db: false, added: false };
+    let processResultBadSignatureError = false;
 
-    // If DNS check fails, and dkim key is not in DB, we calculate gcd via calling the processAndStoreEmailSignature function else we store the email signature
+    try {
+      // Verify DKIM signature; skip DNS if signature is bad
+      await verifyDKIMSignature(decodedEmailRaw, domain, true, true, true);
+    } catch (error) {
+      console.log(
+        chalk.redBright('Error verifying DKIM signature:\nDomain:', domain, '\n', error)
+      );
+      if (
+        error instanceof Error &&
+        error.message?.includes("bad signature")
+      ) {
+        processResultBadSignatureError = true;
+      }
+    }
+
+    if (!processResultBadSignatureError) {
+      addResult = await addDomainSelectorPair(domain, selector, "api");
+    }
+
+    // If DNS check fails, and dkim key is not in DB, we calculate gcd via calling the processAndStoreEmailSignature function else we just store the email signature
+
     const processResult = await processAndStoreEmailSignature(
       headers,
       dkimSig,
       tags,
       internalDate,
-      decodedEmailRaw,
-      addResult
+      addResult,
+      processResultBadSignatureError
     );
 
     const domainSelectorPair = { domain, selector };
