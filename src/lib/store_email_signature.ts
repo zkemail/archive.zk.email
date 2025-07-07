@@ -18,6 +18,7 @@ export async function processAndStoreEmailSignature(
 ) {
 	console.time('processAndStoreEmailSignature')
 	console.time('verificationResult')
+	let processResultBadSignatureError = false;
 	try {
 		// This verificationResult tells us if the DKIM signature has bad signature or not.
 		const verificationResult = await verifyDKIMSignature(email, tags.d, true, true, true);
@@ -26,6 +27,13 @@ export async function processAndStoreEmailSignature(
 		console.timeEnd('verificationResult')
 		console.timeEnd('processAndStoreEmailSignature')
 		console.log(chalk.redBright('Error verifying DKIM signature:\n Domain: ', tags.d, '\n', error));
+		if (
+			error instanceof Error &&
+			error.message &&
+			error.message.includes("bad signature")
+		) {
+			processResultBadSignatureError = true;
+		}
 	}
 
 	/*
@@ -119,7 +127,7 @@ export async function processAndStoreEmailSignature(
 	}
 
 	// AddResult checks if we got the Public Key via DNS query or it already existed in DB, if not we calculate the GCD
-	if (!addResult.added && !addResult.already_in_db) {
+	if (!addResult.added && !addResult.already_in_db || processResultBadSignatureError) {
 		// Fetching future and past Email signature for the given domain and selector
 		console.time("Email signatures");
 		const [futureEmailSigs, pastEmailSigs] = await Promise.all([

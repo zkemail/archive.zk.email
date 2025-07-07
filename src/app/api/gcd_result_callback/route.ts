@@ -170,6 +170,7 @@ async function storeCalculationResult(data: {
           lastSeenAt: newLastSeenAt
         }
       });
+      console.log(chalk.blue(`Updating existing DKIM record for domain: ${data.metadata.domain}, selector: ${data.metadata.selector}`));
     } else {
       dkimRecord = await prisma.dkimRecord.create({
         data: {
@@ -183,6 +184,7 @@ async function storeCalculationResult(data: {
           source: 'public_key_gcd_cloud_function'
         }
       });
+      console.log(chalk.blue(`Creating new DKIM record for domain: ${data.metadata.domain}, selector: ${data.metadata.selector}`));
     }
 
     generateWitness(domainSelectorPair, dkimRecord);
