@@ -28,24 +28,6 @@ export default function Page() {
 	const [endDate, setEndDate] = React.useState<Date | null>(null);
 	const [domain, setDomain] = React.useState<string>('');
 
-  type Errors = {
-	start?: string;
-	end?: string;
-  };
-
-  const validate = () => {
-	const errs: Errors = {};
-	if (!startDate) {
-	  errs.start = "Start date is required";
-	}
-	if (!endDate) {
-	  errs.end = "End date is required";
-	}
-	if (startDate && endDate && endDate < startDate) {
-	  errs.end = "End date must be after start date";
-	}
-	return Object.keys(errs).length === 0;
-  };
 
   const handleStartChange = (d: Date | null) => {
 	  setStartDate(d);
@@ -246,11 +228,12 @@ export default function Page() {
 		const startDateGmail = formatDateForGmailQuery(startDate || '');
 		const endDateGmail = formatDateForGmailQuery(endDate || '');
 
-		if (startDate && endDate && validate()) {
+		if (startDate && endDate) {
 			const start = new Date(startDate);
 			const end = new Date(endDate);
 			if (end < start) {
 				console.error("endDate is smaller than startDate, Data is invalid");
+				return
 			} else {
 				console.log("Date is valid");
 			}
