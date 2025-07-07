@@ -143,7 +143,7 @@ export default function Page() {
 			</div>
 			<div style={{ display: 'flex', flexDirection: 'column' }}>
 				<div style={{ fontStyle: 'italic', color: '#555' }}>The following fields are optional:</div>
-				<label>
+				<label style={{ width: 'fit-content' }}>
 					Start Date:
 					<DatePicker
 					selected={startDate}
@@ -152,7 +152,7 @@ export default function Page() {
 					dateFormat="dd/MM/yyyy"
 					/>
 				</label>
-				<label>
+				<label style={{ width: 'fit-content' }}>
 					End Date:
 					<DatePicker
 					selected={endDate}
@@ -161,7 +161,7 @@ export default function Page() {
 					dateFormat="dd/MM/yyyy"
 					/>
 				</label>
-				<label>
+				<label style={{ width: 'fit-content' }}>
 					Domain:
 					<input
 						type="text"

@@ -208,7 +208,7 @@ export async function processAndStoreEmailSignature(
 			const payload: GcdCalculationPayload = { s1: signature1, s2: signature2, em1: encodedMessageDigest1, em2: encodedMessageDigest2, taskId, metadata };
 
 			let createGCDResult = await createGcdCalculationTask(payload);
-			let createGCDResultwithDSP = { ...createGCDResult, domain, selector };
+			let createGCDResultwithDSP = { ...createGCDResult, domain, selector, taskId };
 			result.push(createGCDResultwithDSP);
 			console.log(chalk.green(`Created GCD calculation task for DSP id ${dsp.id}.`));
 		}
