@@ -104,9 +104,8 @@ async function decodeKeyInfo(dkimRecordTsv: string): Promise<{ keyType: KeyType,
 	}
 	const p_base64 = tagValues['p'].trim();
 	if (p_base64 === '') {
-		console.log(`empty p= tag found in dkim record`);
 		// an empty p= tag is allowed and means that the key is revoked, see https://datatracker.ietf.org/doc/html/rfc6376#section-3.6.1
-		return { keyType, keyDataBase64: '' };
+		throw `empty p= tag found in dkim record`;
 	}
 
 	const p_binary = Buffer.from(p_base64, 'base64');
