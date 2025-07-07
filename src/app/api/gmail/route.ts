@@ -5,7 +5,7 @@ import { getToken } from "next-auth/jwt";
 import { getServerSession } from "next-auth/next";
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
-import { type AddResult, addDomainSelectorPair, processResult } from "@/lib/utils_server";
+import { type AddResult, addDomainSelectorPair, type ProcessResult } from "@/lib/utils_server";
 import { processAndStoreEmailSignature } from "@/lib/store_email_signature";
 import { headers } from 'next/headers';
 
@@ -81,7 +81,7 @@ async function handleMessage(
 
 type AddDspResult = {
   addResult: AddResult;
-  processResult: processResult;
+  processResult: ProcessResult;
   domainSelectorPair: DomainAndSelector;
   mailTimestamp?: string;
 };
