@@ -5,9 +5,11 @@ import { getToken } from "next-auth/jwt";
 import { getServerSession } from "next-auth/next";
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
-import { type AddResult, addDomainSelectorPair } from "@/lib/utils_server";
+import { type AddResult, addDomainSelectorPair, type ProcessResult } from "@/lib/utils_server";
 import { processAndStoreEmailSignature } from "@/lib/store_email_signature";
 import { headers } from 'next/headers';
+import { verifyDKIMSignature } from "@zk-email/helpers/dist/dkim";
+import chalk from "chalk";
 
 async function handleMessage(
   messageId: string,
@@ -56,21 +58,43 @@ async function handleMessage(
       console.log("missing s tag", tags);
       continue;
     }
-    const addResult = await addDomainSelectorPair(domain, selector, "api");
+    let addResult: AddResult = { already_in_db: false, added: false };
+    let processResultBadSignatureError = false;
 
-    // If DNS check fails, and dkim key is not in DB, we calculate gcd via calling the processAndStoreEmailSignature function else we store the email signature
-    await processAndStoreEmailSignature(
+    try {
+      // Verify DKIM signature; skip DNS if signature is bad
+      await verifyDKIMSignature(decodedEmailRaw, domain, true, true, true);
+    } catch (error) {
+      console.log(
+        chalk.redBright('Error verifying DKIM signature:\nDomain:', domain, '\n', error)
+      );
+      if (
+        error instanceof Error &&
+        error.message?.includes("bad signature")
+      ) {
+        processResultBadSignatureError = true;
+      }
+    }
+
+    if (!processResultBadSignatureError) {
+      addResult = await addDomainSelectorPair(domain, selector, "api");
+    }
+
+    // If DNS check fails, and dkim key is not in DB, we calculate gcd via calling the processAndStoreEmailSignature function else we just store the email signature
+
+    const processResult = await processAndStoreEmailSignature(
       headers,
       dkimSig,
       tags,
       internalDate,
-      decodedEmailRaw,
-      addResult
+      addResult,
+      processResultBadSignatureError
     );
 
     const domainSelectorPair = { domain, selector };
     resultArray.push({
       addResult,
+      processResult,
       domainSelectorPair,
       mailTimestamp: internalDate?.toString(),
     });
@@ -80,6 +104,7 @@ async function handleMessage(
 
 type AddDspResult = {
   addResult: AddResult;
+  processResult: ProcessResult;
   domainSelectorPair: DomainAndSelector;
   mailTimestamp?: string;
 };
@@ -121,9 +146,17 @@ async function handleRequest(request: NextRequest) {
   const pageToken = request.nextUrl.searchParams.get("pageToken");
   const gmailQuery = request.nextUrl.searchParams.get("gmailQuery");
   const isFirstPage = !pageToken;
-  const messagesTotal = isFirstPage
-    ? (await gmail.users.getProfile({ userId: "me" })).data.messagesTotal
-    : null;
+
+  let messagesTotal = null;
+  if (isFirstPage) {
+    try {
+      const profileResponse = await gmail.users.getProfile({ userId: "me" });
+      messagesTotal = profileResponse.data.messagesTotal;
+    } catch (error) {
+      console.error("Error getting profile:", error);
+    }
+  }
+
   const messageTotalParam = messagesTotal ? { messagesTotal } : {};
 
   const listParams: any = {
@@ -139,7 +172,13 @@ async function handleRequest(request: NextRequest) {
     listParams.pageToken = pageToken;
   }
 
-  const listResults = await gmail.users.messages.list(listParams);
+  let listResults;
+  try {
+    listResults = await gmail.users.messages.list(listParams);
+  } catch (error: any) {
+    console.error("Error listing messages:", error);
+    listResults = { data: { messages: [], nextPageToken: null } };
+  }
 
   console.log("listResults", listResults);
 
@@ -155,7 +194,7 @@ async function handleRequest(request: NextRequest) {
     try {
       await handleMessage(message.id, gmail, addDspResults);
     } catch (e) {
-      console.log(`error handling message ${message.id}`, e);
+      console.log(`Error in handling message ${message.id}`, e);
     }
   }
   const nextPageToken = listResults.data.nextPageToken || null;

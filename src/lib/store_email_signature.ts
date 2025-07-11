@@ -13,19 +13,10 @@ export async function processAndStoreEmailSignature(
 	dkimSignature: string,
 	tags: Record<string, string>,
 	timestamp: Date | null,
-	email: string,
-	addResult: AddResult
+	addResult: AddResult,
+	processResultBadSignatureError = false
 ) {
-	try {
-		// This verificationResult tells us if the DKIM signature has bad signature or not.
-		const verificationResult = await verifyDKIMSignature(email, tags.d, true, true, true);
-	} catch (error) {
-		console.log(chalk.redBright('Error verifying DKIM signature:\n Domain: ', tags.d, '\n', error));
-		if (error && typeof error === "string" && (error as any).includes("Reason: bad signature")) {
-			return;
-		}
-	}
-
+	console.time('processAndStoreEmailSignature')
 	/*
 	Basic run down of below Steps :-
 	1. we will parse header and Signature values
@@ -79,82 +70,79 @@ export async function processAndStoreEmailSignature(
 
 	/*
 	Basic rundown of the steps below:
-	1. Check if the hash and signature exist.
-	2. Check if the DSP exists or not.
-	3. If it doesn't exist, we directly store it in the DB, since we can't check for GCD with only one DSP value.
-	4. We check if the public key already exists in the DB or was obtained via DNS query; if not, we calculate the GCD.
-	5. If the public key doesn't exist in the DB and wasn't received via DNS query, we calculate and store it in the database.
+	1. Check if the hash and signature exist. If they do, we skip the rest of the processing and return early.
+	2. If it doesn't exist, we directly store it in the DB.
+	3. Check if the public key exists or we got it from DNS.
+	4. If not, we query other pairs from database, if we find any we calculate the GCD else we return.
 	*/
 
-	// Fetching future and past DSPs for the given domain and selector, if exist.
-	const [futureDsps, pastDsps] = await prisma.$transaction([
-		prisma.emailSignature.findMany({
-			where: {
-				domain: {
-					equals: domain,
-					mode: Prisma.QueryMode.insensitive,
-				},
-				selector: {
-					equals: selector,
-					mode: Prisma.QueryMode.insensitive
-				},
-				timestamp: {
-					gt: timestamp || undefined,
-				},
-			},
-			take: 2,
-		}),
-		prisma.emailSignature.findMany({
-			where: {
-				domain: {
-					equals: domain,
-					mode: Prisma.QueryMode.insensitive,
-				},
-				selector: {
-					equals: selector,
-					mode: Prisma.QueryMode.insensitive
-				},
-				timestamp: {
-					lt: timestamp || undefined,
-				},
-			},
-			take: 2,
-		})
-	]);
 
-	// The combined results will have up to 4 records.
-	const dsps = [...futureDsps, ...pastDsps];
-	console.log(chalk.blue(`Found ${dsps.length} DSPs for domain: ${domain}, selector: ${selector}`));
+	console.time("insertOrIgnore");
+	try {
+		const result = await prisma.$executeRaw`
+		INSERT INTO "EmailSignature" (
+			domain, selector, "headerHash", "headerHashV2", 
+			"dkimSignature", timestamp, "signingAlgorithm", "canonInfo"
+		) 
+		VALUES (
+			${domain}, ${selector}, ${headerHash}, ${headerHash},
+			${dkimSignatureRaw}, ${timestamp}, ${signingAlgorithm}, 
+			${'@zk-email/helpers@6.3.3'}
+		)
+		ON CONFLICT ("headerHashV2", "dkimSignature") DO NOTHING
+	`;
 
-	// Check hash And Signature Exists
-	const hashAndSignatureExists = await prisma.emailSignature.findFirst({
-		where: { headerHashV2: headerHash, dkimSignature: dkimSignatureRaw }
-	});
+		console.timeEnd("insertOrIgnore");
 
-	if (hashAndSignatureExists) {
-		console.log(chalk.yellow(`headerHash and Signature already exist in DB`));
-		return;
-	} else {
-		await prisma.emailSignature.create({
-			data: {
-				domain,
-				selector,
-				headerHash,
-				headerHashV2: headerHash,
-				dkimSignature: dkimSignatureRaw,
-				timestamp,
-				signingAlgorithm,
-				canonInfo: '@zk-email/helpers@6.3.3'
-			}
-		});
+		if (result === 0) {
+			console.timeEnd('processAndStoreEmailSignature')
+			console.log(chalk.yellow(`headerHash and Signature already exist in DB`));
+			return { processResultError: "headerHash and Signature already exist in DB" };
+		} else {
+			console.log(chalk.green(`New email signature inserted successfully`));
+		}
+	} catch (error) {
+		console.timeEnd('processAndStoreEmailSignature')
+		console.timeEnd("insertOrIgnore");
+		throw error;
 	}
 
-
 	// AddResult checks if we got the Public Key via DNS query or it already existed in DB, if not we calculate the GCD
-	if (!addResult.added && !addResult.already_in_db) {
+	if (!addResult.added && !addResult.already_in_db || processResultBadSignatureError) {
+		// Fetching future and past Email signature for the given domain and selector
+		console.time("Email signatures");
+		const [futureEmailSigs, pastEmailSigs] = await Promise.all([
+			prisma.emailSignature.findMany({
+				where: {
+					domain: { equals: domain, mode: Prisma.QueryMode.insensitive },
+					selector: { equals: selector, mode: Prisma.QueryMode.insensitive },
+					timestamp: { gt: timestamp || undefined },
+				},
+				take: 2,
+				orderBy: { timestamp: 'asc' },
+			}),
+			prisma.emailSignature.findMany({
+				where: {
+					domain: { equals: domain, mode: Prisma.QueryMode.insensitive },
+					selector: { equals: selector, mode: Prisma.QueryMode.insensitive },
+					timestamp: { lt: timestamp || undefined },
+				},
+				take: 2,
+				orderBy: { timestamp: 'desc' },
+			}),
+		]);
+		console.timeEnd("Email signatures");
+
+
+		// The combined results will have up to 4 records.
+		const dsps = [...futureEmailSigs, ...pastEmailSigs];
+		console.log(chalk.blue(`Found ${dsps.length} Email signatures for domain: ${domain}, selector: ${selector}`));
+
+
 		if (dsps.length === 0) {
+			console.timeEnd('processAndStoreEmailSignature')
 			console.log(chalk.red(`No existing DSPs found for domain: ${domain}, selector: ${selector}. Can't check for GCD.`));
-			return;
+			return { processResultError: "No existing DSPs found for domain,Can't check for GCD" };
 		}
 
 		// Calculating the signature and encoded message digest for the current email.
@@ -164,6 +152,7 @@ export async function processAndStoreEmailSignature(
 		const encodedMessageDigest1 = encodeRsaPkcs1Digest(headerHashBuffer1, signingAlgorithm, keySizeBytes).toString();
 
 		// Loop through each found DSP to create a GCD calculation task against the current email.
+		const result = [];
 		for (const dsp of dsps) {
 			// Ensure the database record has the required fields.
 			if (!dsp.dkimSignature || !dsp.headerHashV2) {
@@ -199,8 +188,13 @@ export async function processAndStoreEmailSignature(
 
 			const payload: GcdCalculationPayload = { s1: signature1, s2: signature2, em1: encodedMessageDigest1, em2: encodedMessageDigest2, taskId, metadata };
 
-			await createGcdCalculationTask(payload);
+			let createGCDResult = await createGcdCalculationTask(payload);
+			let createGCDResultwithDSP = { ...createGCDResult, domain, selector, taskId };
+			result.push(createGCDResultwithDSP);
 			console.log(chalk.green(`Created GCD calculation task for DSP id ${dsp.id}.`));
 		}
+		console.timeEnd('processAndStoreEmailSignature')
+		return result;
 	}
+	console.timeEnd('processAndStoreEmailSignature')
 }

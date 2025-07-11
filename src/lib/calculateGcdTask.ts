@@ -29,7 +29,7 @@ export async function createGcdCalculationTask(payload: GcdCalculationPayload) {
   const headersList = headers();
   const host = headersList.get('host');
   const baseUrl = process.env.NODE_ENV === 'development'
-    ? 'https://use-ngrok.ngrok-free.app'
+    ? process.env.CALLBACK_URL
     : `https://${host}`;
 
 
@@ -87,9 +87,7 @@ export async function createGcdCalculationTask(payload: GcdCalculationPayload) {
 
     return {
       success: true,
-      taskName: response.name,
-      taskId: taskPayload.taskId,
-      message: 'Task created successfully. Result will be sent to callback URL.',
+      message: 'Task created successfully. Result will be sent to available shortly',
     };
 
   } catch (error) {
