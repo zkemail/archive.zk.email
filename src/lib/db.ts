@@ -5,6 +5,22 @@ import {
   type DomainSelectorPair,
 } from "@prisma/client";
 import { fetchJsonWebKeySet, fetchx509Cert, DnsDkimFetchResult } from "./utils";
+import { LRUCache } from "lru-cache";
+
+// In process Cache configuration (LRU cache)
+const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+const CACHE_MAX_SIZE = 1000; // Maximum 1000 entries
+
+// Create LRU cache instances
+const domainCache = new LRUCache<string, RecordWithSelector[]>({
+  max: CACHE_MAX_SIZE,
+  ttl: CACHE_TTL,
+});
+
+const domainSelectorCache = new LRUCache<string, RecordWithSelector[]>({
+  max: CACHE_MAX_SIZE,
+  ttl: CACHE_TTL,
+});
 
 const createPrismaClient = () => {
 	const prismaUrl = new URL(process.env.POSTGRES_PRISMA_URL as string);
@@ -87,6 +103,9 @@ export async function updateDspTimestamp(
       lastRecordUpdate: timestamp,
     },
   });
+
+  clearRecordsCache(dsp.domain, dsp.selector);
+
   console.log(`updated dsp timestamp ${dspToString(updatedSelector)}`);
 }
 
@@ -105,6 +124,8 @@ export async function createDkimRecord(
       keyData: dkimDsnRecord.keyDataBase64,
     },
   });
+
+  clearRecordsCache(dsp.domain, dsp.selector);
   console.log(
     `created dkim record ${recordToString(
       dkimRecord
@@ -162,4 +183,78 @@ export async function updateJWKeySet() {
 export async function getJWKeySetRecord() {
   const jwkSetRecord = await prisma.jsonWebKeySets.findMany();
   return jwkSetRecord;
+}
+
+// Helper function to generate cache keys
+function generateCacheKey(domain: string, selector?: string): string {
+  return selector ? `${domain}:${selector}` : domain;
+}
+
+export async function findRecordsWithCache(
+  domain: string,
+  selector?: string
+): Promise<RecordWithSelector[]> {
+  const cacheKey = generateCacheKey(domain, selector);
+  const cache = selector ? domainSelectorCache : domainCache;
+  
+  // Try to get from cache first
+  const cachedResult = cache.get(cacheKey);
+  if (cachedResult) {
+    console.log(`Cache hit for ${cacheKey}`);
+    return cachedResult;
+  }
+
+  console.log(`Cache miss for ${cacheKey}, fetching from database`);
+
+  let records: RecordWithSelector[];
+
+  if (selector) {
+    records = await prisma.dkimRecord.findMany({
+      where: {
+        domainSelectorPair: {
+          domain: domain,
+          selector: selector,
+        },
+      },
+      include: {
+        domainSelectorPair: true, 
+      },
+    });
+  } else {
+    records = await prisma.dkimRecord.findMany({
+      where: {
+        domainSelectorPair: {
+          domain: domain,
+        },
+      },
+      include: {
+        domainSelectorPair: true, 
+      },
+    });
+  }
+
+  const filteredRecords = records.filter(record => record.value !== "p=");
+
+  cache.set(cacheKey, filteredRecords);
+  
+  return filteredRecords;
+}
+
+// Function to clear cache when data is updated
+export function clearRecordsCache(domain?: string, selector?: string) {
+  if (domain && selector) {
+    const cacheKey = generateCacheKey(domain, selector);
+    domainSelectorCache.delete(cacheKey);
+    domainCache.delete(domain);
+  } else if (domain) {
+    domainCache.delete(domain);
+    for (const key of domainSelectorCache.keys()) {
+      if (key.startsWith(domain + ":")) {
+        domainSelectorCache.delete(key);
+      }
+    }
+  } else {
+    domainCache.clear();
+    domainSelectorCache.clear();
+  }
 }
