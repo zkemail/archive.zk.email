@@ -22,6 +22,7 @@ model DomainSelectorPair {
   sourceIdentifier String
 
   @@index([domain])
+  @@index([domain, selector])
 }
 
 enum KeyType {
@@ -41,6 +42,8 @@ model DkimRecord {
   keyData              String?
   source               String?
   emailPairGcdResults  EmailPairGcdResult[]
+
+  @@index([domainSelectorPairId])
 }
 
 model EmailSignature {
