@@ -194,7 +194,7 @@ export async function findRecordsWithCache(
   domain: string,
   selector?: string
 ): Promise<RecordWithSelector[]> {
-  const cacheKey = generateCacheKey(domain, selector);
+  const cacheKey = generateCacheKey(domain.toLowerCase(), selector?.toLowerCase());
   const cache = selector ? domainSelectorCache : domainCache;
   
   // Try to get from cache first
@@ -212,8 +212,14 @@ export async function findRecordsWithCache(
     records = await prisma.dkimRecord.findMany({
       where: {
         domainSelectorPair: {
-          domain: domain,
-          selector: selector,
+          domain: {
+            equals: domain,
+            mode: Prisma.QueryMode.insensitive,
+          },
+          selector: {
+            equals: selector,
+            mode: Prisma.QueryMode.insensitive,
+          },
         },
       },
       include: {
@@ -224,7 +230,10 @@ export async function findRecordsWithCache(
     records = await prisma.dkimRecord.findMany({
       where: {
         domainSelectorPair: {
-          domain: domain,
+          domain: {
+            equals: domain,
+            mode: Prisma.QueryMode.insensitive,
+          },
         },
       },
       include: {
