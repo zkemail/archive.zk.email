@@ -42,6 +42,56 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/DkimKey'
+  /key/domain:
+    get:
+      tags:
+        - dkim-key
+      summary: List DKIM keys for exact domain match
+      description: >
+        Returns a list of DKIM keys for an exact domain match (no subdomains).
+        Optionally filter by a specific selector.
+        Uses in-memory caching for improved performance.
+        The endpoint is rate limited to 2000 requests per second.
+      operationId: listDomainKeys
+      parameters:
+        - name: domain
+          in: query
+          description: Exact domain name to match (no subdomain matching).
+          required: true
+          schema:
+            type: string
+          example: 'example.com'
+        - name: selector
+          in: query
+          description: Optional selector to filter results by a specific DKIM selector.
+          required: false
+          schema:
+            type: string
+      responses:
+        '400':
+          description: Missing domain parameter
+          content:
+            application/json:
+              schema:
+                type: string
+                example: "missing domain parameter"
+        '429':
+          description: Rate limit exceeded
+          content:
+            application/json:
+              schema:
+                type: string
+                example: "Rate limit exceeded"
+        '500':
+          description: Unexpected error
+        '200':
+          description: Successful operation
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/DkimKey'
   /dsp:
     post:
       tags:
