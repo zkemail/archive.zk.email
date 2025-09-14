@@ -261,6 +261,7 @@ export function clearRecordsCache(domain?: string, selector?: string) {
     const cacheKey = generateCacheKey(domain, selector);
     domainSelectorCache.delete(cacheKey);
     domainCache.delete(domain);
+    dspIdCache.delete(cacheKey);
   } else if (domain) {
     domainCache.delete(domain);
     for (const key of domainSelectorCache.keys()) {
@@ -268,8 +269,14 @@ export function clearRecordsCache(domain?: string, selector?: string) {
         domainSelectorCache.delete(key);
       }
     }
+    for (const key of dspIdCache.keys()) {
+      if (key.startsWith(domain + ":")) {
+        dspIdCache.delete(key);
+      }
+    }
   } else {
     domainCache.clear();
     domainSelectorCache.clear();
+    dspIdCache.clear();
   }
 }
