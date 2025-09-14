@@ -311,19 +311,22 @@ export async function findRecordsWithCache(
 // Function to clear cache when data is updated
 export function clearRecordsCache(domain?: string, selector?: string) {
   if (domain && selector) {
-    const cacheKey = generateCacheKey(domain, selector);
+    const domainNorm = domain.toLowerCase();
+    const selectorNorm = selector.toLowerCase();
+    const cacheKey = generateCacheKey(domainNorm, selectorNorm);
     domainSelectorCache.delete(cacheKey);
-    domainCache.delete(domain);
+    domainCache.delete(domainNorm);
     dspIdCache.delete(cacheKey);
   } else if (domain) {
-    domainCache.delete(domain);
+    const domainNorm = domain.toLowerCase();
+    domainCache.delete(domainNorm);
     for (const key of domainSelectorCache.keys()) {
-      if (key.startsWith(domain + ":")) {
+      if (key.startsWith(domainNorm + ":")) {
         domainSelectorCache.delete(key);
       }
     }
     for (const key of dspIdCache.keys()) {
-      if (key.startsWith(domain + ":")) {
+      if (key.startsWith(domainNorm + ":")) {
         dspIdCache.delete(key);
       }
     }
