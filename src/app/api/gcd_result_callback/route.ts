@@ -128,18 +128,22 @@ async function storeCalculationResult(data: {
 }) {
 
   try {
+    // Normalize domain and selector to lowercase
+    const domain = data.metadata.domain.toLowerCase();
+    const selector = data.metadata.selector.toLowerCase();
+
     const domainSelectorPair = await prisma.domainSelectorPair.upsert({
       where: {
         id: await prisma.domainSelectorPair.findFirst({
           where: {
-            domain: data.metadata.domain,
-            selector: data.metadata.selector
+            domain: domain,
+            selector: selector
           }
         }).then(dsp => dsp?.id ?? -1)
       },
       create: {
-        domain: data.metadata.domain,
-        selector: data.metadata.selector,
+        domain: domain,
+        selector: selector,
         sourceIdentifier: 'api_auto',
         lastRecordUpdate: data.completedAt
       },
@@ -192,8 +196,8 @@ async function storeCalculationResult(data: {
     // Find the email signature entries 
     const emailSignatureA = await prisma.emailSignature.findFirst({
       where: {
-        domain: data.metadata.domain,
-        selector: data.metadata.selector,
+        domain: domain,
+        selector: selector,
         headerHash: data.metadata.headerHash1,
         dkimSignature: data.metadata.dkimSignature1
       }
@@ -201,8 +205,8 @@ async function storeCalculationResult(data: {
 
     const emailSignatureB = await prisma.emailSignature.findFirst({
       where: {
-        domain: data.metadata.domain,
-        selector: data.metadata.selector,
+        domain: domain,
+        selector: selector,
         headerHash: data.metadata.headerHash2,
         dkimSignature: data.metadata.dkimSignature2
       }
