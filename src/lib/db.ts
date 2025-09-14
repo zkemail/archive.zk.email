@@ -8,7 +8,7 @@ import { fetchJsonWebKeySet, fetchx509Cert, DnsDkimFetchResult } from "./utils";
 import { LRUCache } from "lru-cache";
 
 // In process Cache configuration (LRU cache)
-const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+const CACHE_TTL = 30 * 60 * 1000; // 30 minutes
 const CACHE_MAX_SIZE = 1000; // Maximum 1000 entries
 
 // Create LRU cache instances
@@ -20,6 +20,13 @@ const domainCache = new LRUCache<string, RecordWithSelector[]>({
 const domainSelectorCache = new LRUCache<string, RecordWithSelector[]>({
   max: CACHE_MAX_SIZE,
   ttl: CACHE_TTL,
+});
+
+// Cache for DomainSelectorPair IDs to avoid repeated lookups
+const DSP_ID_CACHE_TTL = 24 * 60 * 60 * 1000; // 1 day
+const dspIdCache = new LRUCache<string, number>({
+  max: CACHE_MAX_SIZE,
+  ttl: DSP_ID_CACHE_TTL,
 });
 
 const createPrismaClient = () => {
@@ -196,63 +203,109 @@ function generateCacheKey(domain: string, selector?: string): string {
   return selector ? `${domain}:${selector}` : domain;
 }
 
+const inFlightRequests = new Map<string, Promise<RecordWithSelector[]>>();
+
 export async function findRecordsWithCache(
   domain: string,
   selector?: string
 ): Promise<RecordWithSelector[]> {
-  const cacheKey = generateCacheKey(domain.toLowerCase(), selector?.toLowerCase());
-  const cache = selector ? domainSelectorCache : domainCache;
+  // Normalize inputs to lowercase
+  const domainNorm = domain.toLowerCase();
+  const selectorNorm = selector?.toLowerCase();
   
+  const cacheKey = generateCacheKey(domainNorm, selectorNorm);
+  const cache = selector ? domainSelectorCache : domainCache;
+
   // Try to get from cache first
   const cachedResult = cache.get(cacheKey);
   if (cachedResult) {
-    console.log(`Cache hit for ${cacheKey}`);
     return cachedResult;
   }
 
-  console.log(`Cache miss for ${cacheKey}, fetching from database`);
-
-  let records: RecordWithSelector[];
-
-  if (selector) {
-    records = await prisma.dkimRecord.findMany({
-      where: {
-        domainSelectorPair: {
-          domain: {
-            equals: domain,
-            mode: Prisma.QueryMode.insensitive,
-          },
-          selector: {
-            equals: selector,
-            mode: Prisma.QueryMode.insensitive,
-          },
-        },
-      },
-      include: {
-        domainSelectorPair: true, 
-      },
-    });
-  } else {
-    records = await prisma.dkimRecord.findMany({
-      where: {
-        domainSelectorPair: {
-          domain: {
-            equals: domain,
-            mode: Prisma.QueryMode.insensitive,
-          },
-        },
-      },
-      include: {
-        domainSelectorPair: true, 
-      },
-    });
+  // De-duplicate concurrent misses
+  const inflight = inFlightRequests.get(cacheKey);
+  if (inflight) {
+    return inflight;
   }
 
-  const filteredRecords = records.filter(record => record.value !== "p=");
+  // Cache miss: fetch from database
 
-  cache.set(cacheKey, filteredRecords);
-  
-  return filteredRecords;
+  const p = (async () => {
+    // Minimal timing to avoid console overhead in hot path
+    
+    if (selectorNorm) {
+      // STEP 1: Try in-memory DSP id cache first
+      const dspIdKey = generateCacheKey(domainNorm, selectorNorm);
+      let dspId = dspIdCache.get(dspIdKey);
+      if (!dspId) {
+        const dsp = await prisma.domainSelectorPair.findFirst({
+          where: { domain: domainNorm, selector: selectorNorm },
+          select: { id: true },
+        });
+        if (!dsp) {
+          cache.set(cacheKey, []);
+          return [];
+        }
+        dspId = dsp.id;
+        dspIdCache.set(dspIdKey, dspId);
+      }
+      
+      // STEP 2: Get DkimRecords by ID
+      const dkimRecords = await prisma.dkimRecord.findMany({
+        where: { domainSelectorPairId: dspId },
+        select: { firstSeenAt: true, lastSeenAt: true, value: true },
+      });
+      
+      // Filter and combine (use normalized domain/selector)
+      const filtered = dkimRecords.filter(record => record.value !== "p=");
+      const result = filtered.map(record => ({
+        ...record,
+        domainSelectorPair: { domain: domainNorm, selector: selectorNorm },
+      })) as unknown as RecordWithSelector[];
+      
+      cache.set(cacheKey, result);
+      return result;
+      
+    } else {
+      // Domain-only path (same detailed logging)
+      const dsps = await prisma.domainSelectorPair.findMany({
+        where: { domain: domainNorm },
+        select: { id: true, domain: true, selector: true },
+      });
+      
+      if (dsps.length === 0) {
+        cache.set(cacheKey, []);
+        return [];
+      }
+      
+      const dkimRecords = await prisma.dkimRecord.findMany({
+        where: { domainSelectorPairId: { in: dsps.map(dsp => dsp.id) } },
+        select: { domainSelectorPairId: true, firstSeenAt: true, lastSeenAt: true, value: true },
+      });
+      
+      const dspMap = new Map(dsps.map(dsp => [dsp.id, dsp]));
+      const filtered = dkimRecords.filter(record => record.value !== "p=");
+      const result = filtered.map(record => {
+        const dsp = dspMap.get(record.domainSelectorPairId)!;
+        return {
+          firstSeenAt: record.firstSeenAt,
+          lastSeenAt: record.lastSeenAt,
+          value: record.value,
+          domainSelectorPair: { domain: dsp.domain, selector: dsp.selector },
+        };
+      }) as unknown as RecordWithSelector[];
+            
+      cache.set(cacheKey, result);
+      return result;
+    }
+  })();
+
+  inFlightRequests.set(cacheKey, p);
+  try {
+    return await p;
+  } finally {
+    inFlightRequests.delete(cacheKey);
+  }
 }
 
 // Function to clear cache when data is updated
