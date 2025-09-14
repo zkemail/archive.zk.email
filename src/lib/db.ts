@@ -24,7 +24,13 @@ const domainSelectorCache = new LRUCache<string, RecordWithSelector[]>({
 
 const createPrismaClient = () => {
 	const prismaUrl = new URL(process.env.POSTGRES_PRISMA_URL as string);
-	prismaUrl.searchParams.set('pool_timeout', '0');
+	
+	// Optimize connection pooling parameters
+	prismaUrl.searchParams.set('connection_limit', '20');        // Max connections
+	prismaUrl.searchParams.set('pool_timeout', '10');            // Pool acquire timeout (seconds)
+	prismaUrl.searchParams.set('connect_timeout', '10');         // Connection timeout
+	prismaUrl.searchParams.set('socket_timeout', '30');         // Query timeout
+	
 	return new PrismaClient({
 		datasources: {
 			db: {
