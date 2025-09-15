@@ -33,14 +33,8 @@ export async function addDomainSelectorPair(domain: string, selector: string, so
 	// check if record exists
 	const dsp = await prisma.domainSelectorPair.findFirst({
 		where: {
-			domain: {
-				equals: domain,
-				mode: Prisma.QueryMode.insensitive,
-			},
-			selector: {
-				equals: selector,
-				mode: Prisma.QueryMode.insensitive
-			}
+			domain: domain,
+			selector: selector
 		}
 	});
 	if (dsp) {
