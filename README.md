@@ -1,8 +1,8 @@
-This repository is part of the [Proof of Email](https://prove.email/) project -- read more at [prove.email/blog/archive](https://prove.email/blog/archive)!
+This repository is part of the [Proof of Email](https://zk.email/) project -- read more at [zk.email/blog/archive](https://zk.email/blog/archive)!
 
 # DKIM archive website
 
-The website lets the user search for a domain and returns archived DKIM selectors and keys for that domain. Visit the website at https://archive.prove.email/
+The website lets the user search for a domain and returns archived DKIM selectors and keys for that domain. Visit the website at https://archive.zk.email/
 
 Under `/contribute`, users can contribute with new domains and selectors, which are extracted from the `DKIM-Signature` header field in each email message in the user's Gmail account.
 
@@ -15,7 +15,7 @@ For information on how to help with development, see [development.md](developmen
 
 ## Domain search API
 
-A public API endpoint for fetching keys for a certain domain is available at `https://archive.prove.email/api/key?domain={domain_name}`. The response will contain a list of all known selectors and DKIM keys for `domain_name` and its subdomains.
+A public API endpoint for fetching keys for a certain domain is available at `https://archive.zk.email/api/key?domain={domain_name}`. The response will contain a list of all known selectors and DKIM keys for `domain_name` and its subdomains.
 
 An example call from the command line:
 
@@ -71,7 +71,7 @@ python3 src/util/pst_scraper.py inbox.pst > domains_and_selectors.tsv
 
 The output file, (`domains_and_selectors.tsv` in the examples above), is a [TSV](https://en.wikipedia.org/wiki/Tab-separated_values) file with two columns: domain and selector.
 
-You can now use the .tsv file to contribute to the archive on the [Upload from TSV file](https://archive.prove.email/upload_tsv) page.
+You can now use the .tsv file to contribute to the archive on the [Upload from TSV file](https://archive.zk.email/upload_tsv) page.
 
 # DB Migration Guide
 
@@ -111,4 +111,4 @@ Always include the new migration file in your pull request. This ensures that th
 ### Existing Migrations
 
 You can find previous migration files in the GitHub repository:
-[https://github.com/zkemail/archive.prove.email/tree/main/prisma/migrations](https://github.com/zkemail/archive.prove.email/tree/main/prisma/migrations)
+[https://github.com/zkemail/archive.zk.email/tree/main/prisma/migrations](https://github.com/zkemail/archive.zk.email/tree/main/prisma/migrations)
