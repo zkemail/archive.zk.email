@@ -4,7 +4,7 @@
 	"license": "MIT",
 	"private": true,
 	"engines": {
-		"node": ">=v22.2.0"
+		"node": "^22.0.0"
 	},
 	"scripts": {
 		"dev": "next dev",
@@ -57,7 +57,7 @@
 	"devDependencies": {
 		"@biomejs/biome": "1.9.4",
 		"@types/lodash": "^4.17.10",
-		"@types/node": "^20.12.12",
+		"@types/node": "^22.0.0",
 		"@types/node-cron": "^3.0.11",
 		"@types/react": "^18.3.3",
 		"@types/react-dom": "^18.3.0",

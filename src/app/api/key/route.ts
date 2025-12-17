@@ -4,6 +4,8 @@ import { headers } from "next/headers";
 import { RateLimiterMemory } from "rate-limiter-flexible";
 import { checkRateLimiter } from "@/lib/utils";
 
+export type RecordSource = "dns" | "database" | "both";
+
 export type DomainSearchResults = {
   domain: string;
   selector: string;

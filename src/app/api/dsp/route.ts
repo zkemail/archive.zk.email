@@ -1,10 +1,10 @@
-import { NextResponse } from 'next/server';
-import type { NextRequest } from 'next/server';
-import { type AddResult, addDomainSelectorPair } from '@/lib/utils_server';
-import { z } from 'zod';
+import { NextResponse } from "next/server";
+import type { NextRequest } from "next/server";
+import { type AddResult, addDomainSelectorPair } from "@/lib/utils_server";
+import { z } from "zod";
 import { headers } from "next/headers";
-import { RateLimiterMemory } from 'rate-limiter-flexible';
-import { checkRateLimiter } from '@/lib/utils';
+import { RateLimiterMemory } from "rate-limiter-flexible";
+import { checkRateLimiter } from "@/lib/utils";
 
 export type AddDspResponse = {
 	message: object;
@@ -34,7 +34,7 @@ export async function POST(request: NextRequest) {
 		const addResult = await addDomainSelectorPair(dsp.domain, dsp.selector, 'api');
 		return NextResponse.json(
 			{ message: dsp, addResult } as AddDspResponse,
-			{ status: 200 }
+			{ status: addResult.added ? 201 : 200 }
 		);
 	}
 	catch (error: any) {
