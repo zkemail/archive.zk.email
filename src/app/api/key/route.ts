@@ -1,8 +1,11 @@
-import { findRecords } from "@/lib/db";
+import { findRecordsWithCache } from "@/lib/db";
 import { type NextRequest, NextResponse } from "next/server";
 import { headers } from "next/headers";
 import { RateLimiterMemory } from "rate-limiter-flexible";
 import { checkRateLimiter } from "@/lib/utils";
+import { fetchDkimDnsRecord, addDomainSelectorPair } from "@/lib/utils_server";
+
+export type RecordSource = "dns" | "database" | "both";
 
 export type DomainSearchResults = {
   domain: string;
@@ -10,6 +13,7 @@ export type DomainSearchResults = {
   firstSeenAt: Date | null;
   lastSeenAt: Date | null;
   value: string;
+  source?: RecordSource;
 };
 
 const rateLimiter = new RateLimiterMemory({ points: 1000, duration: 1 });
