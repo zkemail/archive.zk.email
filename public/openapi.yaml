@@ -111,24 +111,34 @@ paths:
             schema:
               $ref: '#/components/schemas/DomainSelectorPair'
       responses:
-        '201':
+        '200':
           description: Successful operation
           content:
             application/json:
               schema:
                 type: object
                 required:
-                  - added
                   - message
+                  - addResult
                 properties:
-                  added:
-                    type: boolean
-                    description: Whether the domain/selector pair was added to the archive
                   message:
                     $ref: '#/components/schemas/DomainSelectorPair'
-
+                  addResult:
+                    type: object
+                    required:
+                      - already_in_db
+                      - added
+                    properties:
+                      already_in_db:
+                        type: boolean
+                        description: Whether the domain/selector pair was already in the database
+                      added:
+                        type: boolean
+                        description: Whether a new DKIM record was added to the archive
         '400':
           description: Invalid input
+        '429':
+          description: Rate limit exceeded
         '500':
           description: Unexpected error
   /jwk_set:

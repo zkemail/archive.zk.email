@@ -1,10 +1,23 @@
-import { NextResponse } from 'next/server';
-import type { NextRequest } from 'next/server';
-import { type AddResult, addDomainSelectorPair } from '@/lib/utils_server';
-import { z } from 'zod';
+import { NextResponse } from "next/server";
+import type { NextRequest } from "next/server";
+import { type AddResult, addDomainSelectorPair } from "@/lib/utils_server";
+import { z } from "zod";
 import { headers } from "next/headers";
-import { RateLimiterMemory } from 'rate-limiter-flexible';
-import { checkRateLimiter } from '@/lib/utils';
+import { RateLimiterMemory } from "rate-limiter-flexible";
+import { checkRateLimiter } from "@/lib/utils";
+
+const corsHeaders = {
+	"Access-Control-Allow-Origin": "*",
+	"Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+	"Access-Control-Allow-Headers": "Content-Type, Authorization, Accept",
+};
+
+export async function OPTIONS() {
+	return new NextResponse(null, {
+		status: 204,
+		headers: corsHeaders,
+	});
+}
 
 export type AddDspResponse = {
 	message: object;

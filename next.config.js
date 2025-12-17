@@ -20,6 +20,14 @@ const nextConfig = {
             value: "*",
           },
           {
+            key: "Access-Control-Allow-Methods",
+            value: "GET, POST, PUT, DELETE, OPTIONS",
+          },
+          {
+            key: "Access-Control-Allow-Headers",
+            value: "Content-Type, Authorization, Accept",
+          },
+          {
             key: "Content-Security-Policy",
             value: cspValue.join("; "),
           },
