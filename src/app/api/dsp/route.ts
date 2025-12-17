@@ -6,19 +6,6 @@ import { headers } from "next/headers";
 import { RateLimiterMemory } from "rate-limiter-flexible";
 import { checkRateLimiter } from "@/lib/utils";
 
-const corsHeaders = {
-	"Access-Control-Allow-Origin": "*",
-	"Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
-	"Access-Control-Allow-Headers": "Content-Type, Authorization, Accept",
-};
-
-export async function OPTIONS() {
-	return new NextResponse(null, {
-		status: 204,
-		headers: corsHeaders,
-	});
-}
-
 export type AddDspResponse = {
 	message: object;
 	addResult?: AddResult;
