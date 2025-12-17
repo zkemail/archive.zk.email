@@ -34,7 +34,7 @@ export async function POST(request: NextRequest) {
 		const addResult = await addDomainSelectorPair(dsp.domain, dsp.selector, 'api');
 		return NextResponse.json(
 			{ message: dsp, addResult } as AddDspResponse,
-			{ status: 200 }
+			{ status: addResult.added ? 201 : 200 }
 		);
 	}
 	catch (error: any) {

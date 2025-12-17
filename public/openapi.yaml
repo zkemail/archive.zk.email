@@ -111,30 +111,18 @@ paths:
             schema:
               $ref: '#/components/schemas/DomainSelectorPair'
       responses:
-        '200':
-          description: Successful operation
+        '201':
+          description: Created - A new DKIM record was added to the archive
           content:
             application/json:
               schema:
-                type: object
-                required:
-                  - message
-                  - addResult
-                properties:
-                  message:
-                    $ref: '#/components/schemas/DomainSelectorPair'
-                  addResult:
-                    type: object
-                    required:
-                      - already_in_db
-                      - added
-                    properties:
-                      already_in_db:
-                        type: boolean
-                        description: Whether the domain/selector pair was already in the database
-                      added:
-                        type: boolean
-                        description: Whether a new DKIM record was added to the archive
+                $ref: '#/components/schemas/AddDspResponse'
+        '200':
+          description: OK - Domain/selector pair processed but no new record added (already existed or key not found)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AddDspResponse'
         '400':
           description: Invalid input
         '429':
@@ -253,3 +241,23 @@ components:
           type: boolean
           description: Whether the provenance of the keys has been verified
           example: false
+    AddDspResponse:
+      type: object
+      required:
+        - message
+        - addResult
+      properties:
+        message:
+          $ref: '#/components/schemas/DomainSelectorPair'
+        addResult:
+          type: object
+          required:
+            - already_in_db
+            - added
+          properties:
+            already_in_db:
+              type: boolean
+              description: Whether the domain/selector pair was already in the database
+            added:
+              type: boolean
+              description: Whether a new DKIM record was added to the archive
