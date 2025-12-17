@@ -63,7 +63,7 @@ async function handleMessage(
 
     try {
       // Verify DKIM signature; skip DNS if signature is bad
-      await verifyDKIMSignature(decodedEmailRaw, domain, true, true, true);
+      await verifyDKIMSignature(decodedEmailRaw, domain, false, true, true);
     } catch (error) {
       console.log(
         chalk.redBright('Error verifying DKIM signature:\nDomain:', domain, '\n', error)
