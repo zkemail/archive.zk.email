@@ -30,6 +30,10 @@ export async function GET(req: Request) {
       dbRecords = await findRecordsWithCache(domain, selector);
     } catch (dbError: any) {
       console.error("Database error in findRecordsWithCache:", dbError);
+      return NextResponse.json(
+        { error: "Database error", details: "Failed to fetch records from archive" },
+        { status: 500 }
+      );
     }
 
     // Convert DB records to result format
