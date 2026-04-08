@@ -1,4 +1,4 @@
-import { findRecords } from "@/lib/db";
+import { findRecordsWithCache } from "@/lib/db";
 import { type NextRequest, NextResponse } from "next/server";
 import { headers } from "next/headers";
 import { RateLimiterMemory } from "rate-limiter-flexible";
@@ -14,7 +14,7 @@ export type DomainSearchResults = {
   value: string;
 };
 
-const rateLimiter = new RateLimiterMemory({ points: 1000, duration: 1 });
+const rateLimiter = new RateLimiterMemory({ points: 200, duration: 60 });
 
 export async function GET(request: NextRequest) {
   try {
@@ -31,14 +31,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json("missing domain parameter", { status: 400 });
     }
 
-    let records = await findRecords(domainName);
-
-    // Filter by selector if provided
-    if (selector) {
-      records = records.filter(
-        (record) => record.domainSelectorPair.selector === selector
-      );
-    }
+    const records = await findRecordsWithCache(domainName, selector ?? undefined);
 
     const result: DomainSearchResults[] = records.map((record) => ({
       domain: record.domainSelectorPair.domain,

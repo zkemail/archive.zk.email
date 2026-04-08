@@ -160,11 +160,12 @@ export function axiosErrorMessage(error: any): string {
 }
 
 export async function checkRateLimiter(rateLimiter: RateLimiterMemory, headers: ReadonlyHeaders, consumePoints: number) {
+	// Use the rightmost X-Forwarded-For entry (set by the outermost trusted proxy).
+	// The leftmost entry is attacker-controlled and must not be used.
+	// Falls back to "unknown" so requests without the header are still rate limited.
 	const forwardedFor = headers.get("x-forwarded-for");
-	if (forwardedFor) {
-		const clientIp = forwardedFor.split(',')[0];
-		await rateLimiter.consume(clientIp, consumePoints);
-	}
+	const clientIp = forwardedFor ? forwardedFor.split(",").pop()!.trim() : "unknown";
+	await rateLimiter.consume(clientIp, consumePoints);
 }
 
 export function isValidDate(year: number, month: number, day: number) {

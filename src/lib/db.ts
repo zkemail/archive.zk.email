@@ -267,9 +267,14 @@ export async function findRecordsWithCache(
       return result;
       
     } else {
-      // Domain-only path (same detailed logging)
+      // Domain-only path: match exact domain and all subdomains
       const dsps = await prisma.domainSelectorPair.findMany({
-        where: { domain: domainNorm },
+        where: {
+          OR: [
+            { domain: domainNorm },
+            { domain: { endsWith: "." + domainNorm, mode: Prisma.QueryMode.insensitive } },
+          ],
+        },
         select: { id: true, domain: true, selector: true },
       });
       
