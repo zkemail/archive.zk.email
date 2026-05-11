@@ -10,6 +10,7 @@ import { processAndStoreEmailSignature } from "@/lib/store_email_signature";
 import { headers } from 'next/headers';
 import { verifyDKIMSignature } from "@zk-email/helpers/dist/dkim";
 import chalk from "chalk";
+import { getGoogleOAuthCallbackUrl } from "@/lib/requestBaseUrl";
 
 async function handleMessage(
   messageId: string,
@@ -130,14 +131,13 @@ async function handleRequest(request: NextRequest) {
     return NextResponse.json("Missing access_token", { status: 403 });
   }
   const headersList = await headers();
-  const host = headersList.get('host');
-  const baseUrl = process.env.NODE_ENV === 'development' ? `http://${host}/api/auth/callback/google` : `https://${host}/api/auth/callback/google`;
+  const redirectUri = getGoogleOAuthCallbackUrl(headersList);
   const clientId = process.env.IS_PULL_REQUEST == "true" ? process.env.PREVIEW_GOOGLE_CLIENT_ID : process.env.GOOGLE_CLIENT_ID || '';
   const clientSecret = process.env.IS_PULL_REQUEST == "true" ? process.env.PREVIEW_GOOGLE_CLIENT_SECRET : process.env.GOOGLE_CLIENT_SECRET;
   const oauth2Client = new google.auth.OAuth2(
     clientId,
     clientSecret,
-    baseUrl,
+    redirectUri,
   );
   const gmail = google.gmail({ version: "v1", auth: oauth2Client });
 
