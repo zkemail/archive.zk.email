@@ -3,8 +3,10 @@ type HeaderGetter = {
 };
 
 type RequestBaseUrlOptions = {
+	allowFallback?: boolean;
 	fallbackUrl?: string;
 	nodeEnv?: string;
+	renderExternalHostname?: string;
 };
 
 const TRUSTED_HOSTS = new Set([
@@ -14,8 +16,6 @@ const TRUSTED_HOSTS = new Set([
 	"127.0.0.1",
 ]);
 
-const TRUSTED_HOST_SUFFIXES = [".onrender.com"];
-
 function firstHeaderValue(value: string | null): string | undefined {
 	return value?.split(",")[0]?.trim() || undefined;
 }
@@ -24,7 +24,25 @@ function hostnameWithoutPort(host: string): string {
 	return host.replace(/:\d+$/, "").toLowerCase();
 }
 
-function isTrustedHost(host: string, nodeEnv?: string): boolean {
+function configuredHostname(host: string | undefined): string | undefined {
+	if (!host) {
+		return undefined;
+	}
+
+	try {
+		return hostnameWithoutPort(
+			host.includes("://") ? new URL(host).host : host,
+		);
+	} catch {
+		return hostnameWithoutPort(host);
+	}
+}
+
+function isTrustedHost(
+	host: string,
+	nodeEnv?: string,
+	renderExternalHostname?: string,
+): boolean {
 	const hostname = hostnameWithoutPort(host);
 
 	if (TRUSTED_HOSTS.has(hostname)) {
@@ -35,7 +53,7 @@ function isTrustedHost(host: string, nodeEnv?: string): boolean {
 		return true;
 	}
 
-	return TRUSTED_HOST_SUFFIXES.some((suffix) => hostname.endsWith(suffix));
+	return hostname === configuredHostname(renderExternalHostname);
 }
 
 function inferProtocol(host: string, nodeEnv?: string): "http" | "https" {
@@ -64,14 +82,19 @@ export function getRequestBaseUrl(
 	headers: HeaderGetter,
 	options: RequestBaseUrlOptions = {},
 ): string | undefined {
+	const allowFallback = options.allowFallback ?? true;
 	const nodeEnv = options.nodeEnv ?? process.env.NODE_ENV;
 	const fallbackUrl = options.fallbackUrl ?? process.env.NEXTAUTH_URL;
+	const renderExternalHostname =
+		options.renderExternalHostname ??
+		process.env.RENDER_EXTERNAL_HOSTNAME ??
+		process.env.RENDER_EXTERNAL_URL;
 	const host =
 		firstHeaderValue(headers.get("x-forwarded-host")) ??
 		firstHeaderValue(headers.get("host"));
 
-	if (!host || !isTrustedHost(host, nodeEnv)) {
-		return fallbackUrl?.replace(/\/$/, "");
+	if (!host || !isTrustedHost(host, nodeEnv, renderExternalHostname)) {
+		return allowFallback ? fallbackUrl?.replace(/\/$/, "") : undefined;
 	}
 
 	const protocol = forwardedProtocol(headers) ?? inferProtocol(host, nodeEnv);
