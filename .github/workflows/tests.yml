@@ -1,5 +1,7 @@
 name: ZK Archive tests
-on: [push]
+on:
+  push:
+  pull_request:
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -10,16 +12,16 @@ jobs:
       - name: Install pnpm
         uses: pnpm/action-setup@v4
         with:
-            version: 10
+          version: 10
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '22.x'
-          cache: 'pnpm'
+          node-version: "22.x"
+          cache: "pnpm"
 
       - name: Install Dependencies
         run: pnpm install
-        
+
       - name: Run Tests
         run: pnpm test
