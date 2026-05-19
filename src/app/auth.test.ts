@@ -1,10 +1,14 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { authOptions } from "./auth";
 
 const jwtCallback = authOptions.callbacks.jwt;
 
 describe("auth jwt callback", () => {
+	afterEach(() => {
+		vi.restoreAllMocks();
+	});
+
 	it("does not refresh tokens for unauthenticated public sessions", async () => {
 		const fetchSpy = vi.spyOn(globalThis, "fetch");
 		const token = {};
@@ -13,8 +17,6 @@ describe("auth jwt callback", () => {
 			token,
 		);
 		expect(fetchSpy).not.toHaveBeenCalled();
-
-		fetchSpy.mockRestore();
 	});
 
 	it("does not retry refresh requests after a refresh failure", async () => {
@@ -29,7 +31,5 @@ describe("auth jwt callback", () => {
 			token,
 		);
 		expect(fetchSpy).not.toHaveBeenCalled();
-
-		fetchSpy.mockRestore();
 	});
 });
