@@ -119,46 +119,61 @@ async function decodeKeyInfo(dkimRecordTsv: string): Promise<{ keyType: KeyType,
 	}
 }
 
-export async function fetchDkimDnsRecord(domain: string, selector: string): Promise<DnsDkimFetchResult[]> {
-	const resolver = new dns.promises.Resolver({ timeout: 2500 });
-	const qname = `${selector}._domainkey.${domain}`;
-	let records;
+export function getDkimDnsQnames(domain: string, selector: string): string[] {
+	return [`${selector}._domainkey.${domain}`, `${selector}.dkim.${domain}`];
+}
+
+async function resolveTxtRecords(resolver: dns.promises.Resolver, qname: string): Promise<string[]> {
 	try {
-		records = (await resolver.resolve(qname, 'TXT')).map(record => record.join(''));
+		return (await resolver.resolve(qname, 'TXT')).map(record => record.join(''));
 	}
 	catch (error) {
 		try {
-			console.log(`[DNS] System DNS failed for ${qname}: ${error}. Falling back to `);
+			console.log(`[DNS] System DNS failed for ${qname}: ${error}. Falling back to public DNS servers.`);
 			resolver.setServers(['8.8.8.8', '8.8.4.4', '1.1.1.1', '1.0.0.1']);
-			records = (await resolver.resolve(qname, 'TXT')).map(record => record.join(''));
+			return (await resolver.resolve(qname, 'TXT')).map(record => record.join(''));
 		}
 		catch (error) {
 			console.log(`[DNS] All DNS servers failed for ${qname}: ${error}.`);
 			return [];
 		}
 	}
-	console.log(`found: ${records.length} records for ${qname}`);
-	const result = [];
-	for (const record of records) {
-		console.log(`record: ${record}`);
-		console.log(`found dns record for ${qname}`);
-		try {
-			const { keyType, keyDataBase64 } = await decodeKeyInfo(record);
-			console.log(`keyType: ${keyType}, keyDataBase64: ${keyDataBase64}`);
-			const dkimRecord: DnsDkimFetchResult = {
-				selector,
-				domain,
-				value: record,
-				timestamp: new Date(),
-				keyType,
-				keyDataBase64
-			};
-			result.push(dkimRecord);
-		}
-		catch (error) {
-			console.log(`error decoding record: ${error}`);
-		}
+}
 
+export async function fetchDkimDnsRecord(domain: string, selector: string): Promise<DnsDkimFetchResult[]> {
+	const resolver = new dns.promises.Resolver({ timeout: 2500 });
+	const result = [];
+	const seenRecords = new Set<string>();
+	for (const qname of getDkimDnsQnames(domain, selector)) {
+		const records = await resolveTxtRecords(resolver, qname);
+		console.log(`found: ${records.length} records for ${qname}`);
+		for (const record of records) {
+			if (seenRecords.has(record)) {
+				continue;
+			}
+			seenRecords.add(record);
+			console.log(`record: ${record}`);
+			console.log(`found dns record for ${qname}`);
+			try {
+				const { keyType, keyDataBase64 } = await decodeKeyInfo(record);
+				console.log(`keyType: ${keyType}, keyDataBase64: ${keyDataBase64}`);
+				const dkimRecord: DnsDkimFetchResult = {
+					selector,
+					domain,
+					value: record,
+					timestamp: new Date(),
+					keyType,
+					keyDataBase64
+				};
+				result.push(dkimRecord);
+			}
+			catch (error) {
+				console.log(`error decoding record: ${error}`);
+			}
+		}
+		if (result.length > 0) {
+			break;
+		}
 	}
 	return result
 }
@@ -204,4 +219,3 @@ export function pubKeyLength(signature: any) {
 	}
 	return minBytes;
 }
-
