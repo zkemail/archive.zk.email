@@ -26,6 +26,9 @@ export const authOptions = {
 				return token
 
 			}
+			else if (!token.refresh_token || !token.expires_at || token.error === "RefreshAccessTokenError") {
+				return token
+			}
 			else if (Date.now() < token.expires_at * 1000) {
 				return token
 			}
@@ -78,4 +81,3 @@ export const authOptions = {
 		}
 	}
 }
-
