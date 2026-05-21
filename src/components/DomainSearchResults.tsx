@@ -1,112 +1,139 @@
 "use client";
 
-import { findKeysPaginated, findKeysPaginatedModifiedQuery } from "@/app/actions";
+import {
+	findKeysPaginated,
+	findKeysPaginatedModifiedQuery,
+} from "@/app/actions";
 import Loading from "@/app/loading";
 import type { RecordWithSelector } from "@/lib/db";
 import { parseDkimTagList } from "@/lib/utils";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { DomainSearchResultsDisplay } from "./DomainSearchResultsDisplay";
+import { type FlagState, buildInitialSearchState } from "./domainSearchState";
 
 interface DomainSearchResultsProps {
-  domainQuery: string | undefined;
-  isLoading: boolean;
-  setIsLoading: (isLoading: boolean) => void;
+	domainQuery: string | undefined;
+	isLoading: boolean;
+	setIsLoading: (isLoading: boolean) => void;
 }
 
-type flagState = "normal" | "modified" | "stop";
-
 function dkimValueHasPrivateKey(dkimValue: string): boolean {
-  return !!parseDkimTagList(dkimValue).p;
+	return !!parseDkimTagList(dkimValue).p;
 }
 
 async function fetchDomainResults(
-  domainQuery: string | undefined,
-  cursor: number | null,
-  flagState: flagState
-): Promise<{ filteredRecords: RecordWithSelector[]; newFlag: flagState }> {
-  if (!domainQuery) return { filteredRecords: [], newFlag: "stop" };
+	domainQuery: string | undefined,
+	cursor: number | null,
+	flagState: FlagState,
+): Promise<{ filteredRecords: RecordWithSelector[]; newFlag: FlagState }> {
+	if (!domainQuery) return { filteredRecords: [], newFlag: "stop" };
 
-  let fetchedRecords;
+	let fetchedRecords: RecordWithSelector[];
+	let nextFlag = flagState;
 
-  if (flagState === "normal") {
-    fetchedRecords = await findKeysPaginated(domainQuery, cursor);
+	if (flagState === "normal") {
+		fetchedRecords = await findKeysPaginated(domainQuery, cursor);
 
-    if (fetchedRecords.length === 0 && cursor === null) {
-      fetchedRecords = await findKeysPaginatedModifiedQuery(domainQuery, cursor);
-      flagState = "modified";
-    }
-  } else {
-    fetchedRecords = await findKeysPaginatedModifiedQuery(domainQuery, cursor);
-  }
+		if (fetchedRecords.length === 0 && cursor === null) {
+			fetchedRecords = await findKeysPaginatedModifiedQuery(
+				domainQuery,
+				cursor,
+			);
+			nextFlag = "modified";
+		}
+	} else {
+		fetchedRecords = await findKeysPaginatedModifiedQuery(domainQuery, cursor);
+	}
 
-  const filteredRecords = fetchedRecords.filter((record) => dkimValueHasPrivateKey(record.value));
+	const filteredRecords = fetchedRecords.filter((record) =>
+		dkimValueHasPrivateKey(record.value),
+	);
 
-  return { filteredRecords, newFlag: flagState };
+	return { filteredRecords, newFlag: nextFlag };
 }
 
-function DomainSearchResults({ domainQuery, isLoading, setIsLoading }: DomainSearchResultsProps) {
-  const [records, setRecords] = useState<Map<number, RecordWithSelector>>(new Map());
-  const [cursor, setCursor] = useState<number | null>(null);
-  const [flag, setFlag] = useState<flagState>("normal");
+function DomainSearchResults({
+	domainQuery,
+	isLoading,
+	setIsLoading,
+}: DomainSearchResultsProps) {
+	const [records, setRecords] = useState<Map<number, RecordWithSelector>>(
+		new Map(),
+	);
+	const [cursor, setCursor] = useState<number | null>(null);
+	const [flag, setFlag] = useState<FlagState>("normal");
+	const previousFlag = useRef(flag);
 
-  const loadRecords = useCallback(async (domainQuery: string | undefined) => {
-    const { filteredRecords, newFlag } = await fetchDomainResults(domainQuery, null, "normal");
+	const loadRecords = useCallback(
+		async (domainQuery: string | undefined) => {
+			const { filteredRecords, newFlag } = await fetchDomainResults(
+				domainQuery,
+				null,
+				"normal",
+			);
+			const initialState = buildInitialSearchState(filteredRecords, newFlag);
 
-    if (filteredRecords.length === 0) {
-      setFlag("stop");
-      setIsLoading(false);
-      return;
-    }
+			setFlag(initialState.flag);
+			setRecords(initialState.records);
+			setCursor(initialState.cursor);
+			setIsLoading(false);
+		},
+		[setIsLoading],
+	);
 
-    const newRecordsMap = new Map(records);
-    filteredRecords.forEach((record) => newRecordsMap.set(record.id, record));
+	useEffect(() => {
+		setIsLoading(true);
+		loadRecords(domainQuery);
+	}, [domainQuery, loadRecords, setIsLoading]);
 
-    setFlag(newFlag);
-    setRecords(newRecordsMap);
-    setCursor(filteredRecords[filteredRecords.length - 1]?.id);
-    setIsLoading(false);
-  }, []);
+	const loadMore = useCallback(async () => {
+		if (flag === "stop" || (!cursor && flag === "normal")) return;
 
-  useEffect(() => {
-    setIsLoading(true);
-    loadRecords(domainQuery);
-  }, [domainQuery]);
+		const { filteredRecords } = await fetchDomainResults(
+			domainQuery,
+			cursor,
+			flag,
+		);
 
-  useEffect(() => {
-    loadMore();
-  }, [flag]);
+		const lastCursor = filteredRecords[filteredRecords.length - 1]?.id;
 
-  async function loadMore() {
-    if (flag === "stop" || (!cursor && flag === "normal")) return;
+		if (filteredRecords.length === 0 || lastCursor === cursor) {
+			// If no new records are found, stop further loading
+			setCursor(null);
+			setFlag((oldFlag) => (oldFlag === "normal" ? "modified" : "stop"));
+			return;
+		}
 
-    const { filteredRecords } = await fetchDomainResults(domainQuery, cursor, flag);
+		setRecords((currentRecords) => {
+			const updatedRecordsMap = new Map(currentRecords);
+			for (const record of filteredRecords) {
+				if (!updatedRecordsMap.has(record.id)) {
+					updatedRecordsMap.set(record.id, record);
+				}
+			}
+			return updatedRecordsMap;
+		});
 
-    const lastCursor = filteredRecords[filteredRecords.length - 1]?.id;
+		setCursor(lastCursor);
+	}, [cursor, domainQuery, flag]);
 
-    if (filteredRecords.length === 0 || lastCursor === cursor) {
-      // If no new records are found, stop further loading
-      setCursor(null);
-      setFlag((oldFlag) => (oldFlag === "normal" ? "modified" : "stop"));
-      return;
-    }
+	useEffect(() => {
+		if (previousFlag.current === flag) return;
 
-    const updatedRecordsMap = new Map(records);
+		previousFlag.current = flag;
+		loadMore();
+	}, [flag, loadMore]);
 
-    filteredRecords.forEach((record) => {
-      if (!updatedRecordsMap.has(record.id)) {
-        updatedRecordsMap.set(record.id, record);
-      }
-    });
-
-    setCursor(lastCursor);
-    setRecords(updatedRecordsMap);
-  }
-
-  return isLoading ? (
-    <Loading />
-  ) : (
-    <DomainSearchResultsDisplay records={records} domainQuery={domainQuery} loadMore={loadMore} cursor={cursor} />
-  );
+	return isLoading ? (
+		<Loading />
+	) : (
+		<DomainSearchResultsDisplay
+			records={records}
+			domainQuery={domainQuery}
+			loadMore={loadMore}
+			cursor={cursor}
+		/>
+	);
 }
 
 export default DomainSearchResults;
