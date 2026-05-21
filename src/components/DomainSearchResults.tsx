@@ -7,7 +7,7 @@ import {
 import Loading from "@/app/loading";
 import type { RecordWithSelector } from "@/lib/db";
 import { parseDkimTagList } from "@/lib/utils";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { DomainSearchResultsDisplay } from "./DomainSearchResultsDisplay";
 import { type FlagState, buildInitialSearchState } from "./domainSearchState";
 
@@ -62,29 +62,46 @@ function DomainSearchResults({
 	);
 	const [cursor, setCursor] = useState<number | null>(null);
 	const [flag, setFlag] = useState<FlagState>("normal");
-	const previousFlag = useRef(flag);
 
-	const loadRecords = useCallback(
-		async (domainQuery: string | undefined) => {
+	useEffect(() => {
+		let ignoreResult = false;
+
+		async function loadRecords() {
+			setIsLoading(true);
 			const { filteredRecords, newFlag } = await fetchDomainResults(
 				domainQuery,
 				null,
 				"normal",
 			);
+
+			if (ignoreResult) return;
+
 			const initialState = buildInitialSearchState(filteredRecords, newFlag);
 
 			setFlag(initialState.flag);
 			setRecords(initialState.records);
 			setCursor(initialState.cursor);
 			setIsLoading(false);
-		},
-		[setIsLoading],
-	);
+		}
 
-	useEffect(() => {
-		setIsLoading(true);
-		loadRecords(domainQuery);
-	}, [domainQuery, loadRecords, setIsLoading]);
+		loadRecords();
+
+		return () => {
+			ignoreResult = true;
+		};
+	}, [domainQuery, setIsLoading]);
+
+	const appendRecords = useCallback((filteredRecords: RecordWithSelector[]) => {
+		setRecords((currentRecords) => {
+			const updatedRecordsMap = new Map(currentRecords);
+			for (const record of filteredRecords) {
+				if (!updatedRecordsMap.has(record.id)) {
+					updatedRecordsMap.set(record.id, record);
+				}
+			}
+			return updatedRecordsMap;
+		});
+	}, []);
 
 	const loadMore = useCallback(async () => {
 		if (flag === "stop" || (!cursor && flag === "normal")) return;
@@ -98,31 +115,34 @@ function DomainSearchResults({
 		const lastCursor = filteredRecords[filteredRecords.length - 1]?.id;
 
 		if (filteredRecords.length === 0 || lastCursor === cursor) {
-			// If no new records are found, stop further loading
+			if (flag === "normal") {
+				const { filteredRecords: modifiedRecords } = await fetchDomainResults(
+					domainQuery,
+					null,
+					"modified",
+				);
+				const modifiedCursor = modifiedRecords[modifiedRecords.length - 1]?.id;
+
+				if (modifiedRecords.length === 0) {
+					setCursor(null);
+					setFlag("stop");
+					return;
+				}
+
+				appendRecords(modifiedRecords);
+				setCursor(modifiedCursor ?? null);
+				setFlag("modified");
+				return;
+			}
+
 			setCursor(null);
-			setFlag((oldFlag) => (oldFlag === "normal" ? "modified" : "stop"));
+			setFlag("stop");
 			return;
 		}
 
-		setRecords((currentRecords) => {
-			const updatedRecordsMap = new Map(currentRecords);
-			for (const record of filteredRecords) {
-				if (!updatedRecordsMap.has(record.id)) {
-					updatedRecordsMap.set(record.id, record);
-				}
-			}
-			return updatedRecordsMap;
-		});
-
+		appendRecords(filteredRecords);
 		setCursor(lastCursor);
-	}, [cursor, domainQuery, flag]);
-
-	useEffect(() => {
-		if (previousFlag.current === flag) return;
-
-		previousFlag.current = flag;
-		loadMore();
-	}, [flag, loadMore]);
+	}, [appendRecords, cursor, domainQuery, flag]);
 
 	return isLoading ? (
 		<Loading />
