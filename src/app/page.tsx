@@ -3,6 +3,7 @@
 import DomainSearchResults from "@/components/DomainSearchResults";
 import { SearchInput } from "@/components/SearchInput";
 import { JWKArchiveDisplayList } from "@/components/JWKArchiveDisplay";
+import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useState, useEffect } from "react";
 
@@ -55,7 +56,7 @@ export default function Home() {
       <div style={{ textAlign: "center", marginTop: "5rem", fontSize: "0.8rem" }}>
         <hr style={{ width: "50%", margin: "1rem auto", borderTop: "1px solid black" }} />
         <div>
-          <a href="about">About</a> this site
+          <Link href="/about">About</Link> this site
         </div>
         <div>
           Visit the project on <a href="https://github.com/zkemail/archive.prove.email">GitHub</a>
@@ -64,13 +65,13 @@ export default function Home() {
           Visit <a href="https://prove.email/">Proof of Email</a>
         </div>
         <div>
-          <a href="contribute">Contribute</a> to the archive
+          <Link href="/contribute">Contribute</Link> to the archive
         </div>
         <div>
-          Explore the <a href="api-explorer">API</a>
+          Explore the <Link href="/api-explorer">API</Link>
         </div>
         <div>
-          Read the <a href="privacy-policy">Privacy policy</a>
+          Read the <Link href="/privacy-policy">Privacy policy</Link>
         </div>
       </div>
     </div>

@@ -1,17 +1,41 @@
 import { prisma } from "@/lib/db";
+import Link from "next/link";
 import React from "react";
 
 export const revalidate = 60;
 
+type ArchiveStats =
+	| {
+			available: true;
+			uniqueDomains: string;
+			uniqueSelectors: string;
+			domainSelectorPairs: number;
+			dkimKeys: number;
+	  }
+	| { available: false };
+
+async function getArchiveStats(): Promise<ArchiveStats> {
+	try {
+		// https://github.com/prisma/prisma/issues/4228
+		type CountResult = [{ count: bigint }];
+		const [uniqueDomainsCount] = await prisma.$queryRaw`SELECT COUNT(DISTINCT domain) FROM "DomainSelectorPair";` as CountResult;
+		const [uniqueSelectorsCount] = await prisma.$queryRaw`SELECT COUNT(DISTINCT selector) FROM "DomainSelectorPair";` as CountResult;
+
+		return {
+			available: true,
+			uniqueDomains: uniqueDomainsCount.count.toString(),
+			uniqueSelectors: uniqueSelectorsCount.count.toString(),
+			domainSelectorPairs: await prisma.domainSelectorPair.count(),
+			dkimKeys: await prisma.dkimRecord.count(),
+		};
+	} catch (error) {
+		console.error("Failed to load archive statistics", error);
+		return { available: false };
+	}
+}
+
 export default async function Page() {
-
-	// https://github.com/prisma/prisma/issues/4228
-	type CountResult = [{ count: bigint }]
-	const [uniqueDomainsCount] = await prisma.$queryRaw`SELECT COUNT(DISTINCT domain) FROM "DomainSelectorPair";` as CountResult;
-	const [uniqueSelectorsCount] = await prisma.$queryRaw`SELECT COUNT(DISTINCT selector) FROM "DomainSelectorPair";` as CountResult;
-
-	const domainSelectorPairCount = await prisma.domainSelectorPair.count();
-	const dkimKeyCount = await prisma.dkimRecord.count();
+	const stats = await getArchiveStats();
 
 	return (
 		<div>
@@ -21,7 +45,7 @@ export default async function Page() {
 				The site is a part of the <a href="https://prove.email/">Proof of Email</a> project.
 			</p>
 			<p>
-				On the <a href="contribute">Contribute</a> page, users can contribute with new domains and selectors,
+				On the <Link href="/contribute">Contribute</Link> page, users can contribute with new domains and selectors,
 				which are extracted from the DKIM-Signature header field in each email message in the user's Gmail account.
 				When domains and selectors are added, the site fetches the DKIM key via DNS and stores it in the database.
 			</p>
@@ -30,18 +54,16 @@ export default async function Page() {
 			</p>
 
 			<h2>Statistics</h2>
-			<p>
-				Unique domains: {uniqueDomainsCount.count.toString()}
-			</p>
-			<p>
-				Unique selectors: {uniqueSelectorsCount.count.toString()}
-			</p>
-			<p>
-				Domain/selector-pairs: {domainSelectorPairCount}
-			</p>
-			<p>
-				DKIM keys: {dkimKeyCount}
-			</p>
+			{stats.available ? (
+				<>
+					<p>Unique domains: {stats.uniqueDomains}</p>
+					<p>Unique selectors: {stats.uniqueSelectors}</p>
+					<p>Domain/selector-pairs: {stats.domainSelectorPairs}</p>
+					<p>DKIM keys: {stats.dkimKeys}</p>
+				</>
+			) : (
+				<p>Archive statistics are temporarily unavailable.</p>
+			)}
 		</div >
 	)
 }
