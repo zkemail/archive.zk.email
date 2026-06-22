@@ -1,6 +1,6 @@
 import { authOptions } from "@/app/auth";
 import { type DomainAndSelector, getDkimSigsArray, parseDkimTagListV2, parseEmailHeaderV2 } from "@/lib/utils";
-import { type gmail_v1, google } from "googleapis";
+import type { gmail_v1 } from "googleapis";
 import { getToken } from "next-auth/jwt";
 import { getServerSession } from "next-auth/next";
 import { NextResponse } from "next/server";
@@ -8,8 +8,9 @@ import type { NextRequest } from "next/server";
 import { type AddResult, addDomainSelectorPair, type ProcessResult } from "@/lib/utils_server";
 import { processAndStoreEmailSignature } from "@/lib/store_email_signature";
 import { headers } from 'next/headers';
-import { verifyDKIMSignature } from "@zk-email/helpers/dist/dkim";
 import chalk from "chalk";
+
+export const dynamic = "force-dynamic";
 
 async function handleMessage(
   messageId: string,
@@ -63,6 +64,7 @@ async function handleMessage(
 
     try {
       // Verify DKIM signature; skip DNS if signature is bad
+      const { verifyDKIMSignature } = await import("@zk-email/helpers/dist/dkim");
       await verifyDKIMSignature(decodedEmailRaw, domain, false, true, true);
     } catch (error) {
       console.log(
@@ -134,6 +136,7 @@ async function handleRequest(request: NextRequest) {
   const baseUrl = process.env.NODE_ENV === 'development' ? `http://${host}/api/auth/callback/google` : `https://${host}/api/auth/callback/google`;
   const clientId = process.env.IS_PULL_REQUEST == "true" ? process.env.PREVIEW_GOOGLE_CLIENT_ID : process.env.GOOGLE_CLIENT_ID || '';
   const clientSecret = process.env.IS_PULL_REQUEST == "true" ? process.env.PREVIEW_GOOGLE_CLIENT_SECRET : process.env.GOOGLE_CLIENT_SECRET;
+  const { google } = await import("googleapis");
   const oauth2Client = new google.auth.OAuth2(
     clientId,
     clientSecret,

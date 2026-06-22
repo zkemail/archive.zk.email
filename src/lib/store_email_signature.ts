@@ -1,11 +1,11 @@
 import { prisma } from '@/lib/db';
-import { verifyDKIMSignature } from "@zk-email/helpers/dist/dkim";
 import crypto from 'crypto';
 import chalk from 'chalk';
 import { canonicalizeHeaders, computeCanonicalizedHeaderHash, encodeRsaPkcs1Digest, parseDkimSignature, selectSignedHeadersnew } from "./utils";
 import { Prisma } from "@prisma/client";
 import { AddResult, pubKeyLength } from "./utils_server";
-import { createGcdCalculationTask, GcdCalculationPayload } from "./calculateGcdTask";
+import { createGcdCalculationTask } from "./calculateGcdTask";
+import type { GcdCalculationPayload } from "./calculateGcdTask";
 
 
 export async function processAndStoreEmailSignature(

@@ -4,6 +4,7 @@ set -euo pipefail
 REPO_DIR="${REPO_DIR:-/home/olof_andersson/archive.prove.email}"
 SERVICE_NAME="${SERVICE_NAME:-archive-prove-email}"
 BRANCH="${BRANCH:-main}"
+ARTIFACT_PATH="${ARTIFACT_PATH:-$HOME/archive-prove-email-standalone.tgz}"
 
 NODE_DIRS=(
   "$HOME/node-v22.22.0-linux-x64/bin"
@@ -24,11 +25,6 @@ if ! command -v node >/dev/null 2>&1; then
   exit 1
 fi
 
-if ! command -v pnpm >/dev/null 2>&1; then
-  echo "pnpm is not installed or not on PATH" >&2
-  exit 1
-fi
-
 cd "$REPO_DIR"
 
 git fetch origin
@@ -40,13 +36,28 @@ set -a
 [ -f "$HOME/archive-prove-email.runtime.env" ] && . "$HOME/archive-prove-email.runtime.env"
 set +a
 
-pnpm install --frozen-lockfile
+if [ -f "$ARTIFACT_PATH" ]; then
+  tmp_extract="$(mktemp -d)"
+  trap 'rm -rf "$tmp_extract"' EXIT
 
-export NODE_OPTIONS="${NODE_OPTIONS:-} --max-old-space-size=${NODE_MAX_OLD_SPACE_SIZE:-1536}"
-pnpm build
+  tar -xzf "$ARTIFACT_PATH" -C "$tmp_extract"
 
-if [ ! -f "$REPO_DIR/.next/BUILD_ID" ]; then
-  echo "Next.js build did not produce .next/BUILD_ID" >&2
+  if [ ! -f "$tmp_extract/.next/standalone/server.js" ]; then
+    echo "Standalone artifact is missing .next/standalone/server.js" >&2
+    exit 1
+  fi
+
+  rm -rf "$REPO_DIR/.next/standalone"
+  mkdir -p "$REPO_DIR/.next"
+  cp -a "$tmp_extract/.next/standalone" "$REPO_DIR/.next/standalone"
+  rm -f "$ARTIFACT_PATH"
+elif [ ! -f "$REPO_DIR/.next/standalone/server.js" ]; then
+  echo "No standalone artifact found at $ARTIFACT_PATH and no existing standalone build is installed" >&2
+  exit 1
+fi
+
+if [ ! -f "$REPO_DIR/.next/standalone/server.js" ]; then
+  echo "Standalone build is missing .next/standalone/server.js" >&2
   exit 1
 fi
 

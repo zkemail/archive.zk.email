@@ -29,6 +29,8 @@ env:
   DEPLOY_USER: olof_andersson
   DEPLOY_REPO_DIR: /home/olof_andersson/archive.prove.email
   DEPLOY_SERVICE: archive-prove-email
+  DEPLOY_ARTIFACT: /tmp/archive-prove-email-standalone.tgz
+  DEPLOY_REMOTE_ARTIFACT: /home/olof_andersson/archive-prove-email-standalone.tgz
 
 jobs:
   terraform-manual:
@@ -204,6 +206,76 @@ jobs:
         path: terraform/outputs/terraform_outputs.json
         retention-days: 1
 
+    - name: Setup pnpm
+      if: github.event.inputs.action == 'apply' && steps.workspace.outputs.workspace == 'main'
+      uses: pnpm/action-setup@v4
+      with:
+        version: 9.15.9
+        run_install: false
+
+    - name: Setup Node.js
+      if: github.event.inputs.action == 'apply' && steps.workspace.outputs.workspace == 'main'
+      uses: actions/setup-node@v4
+      with:
+        node-version: 22
+        cache: pnpm
+
+    - name: Install App Dependencies
+      if: github.event.inputs.action == 'apply' && steps.workspace.outputs.workspace == 'main'
+      run: pnpm install --frozen-lockfile
+
+    - name: Build VM App Artifact
+      if: github.event.inputs.action == 'apply' && steps.workspace.outputs.workspace == 'main'
+      env:
+        POSTGRES_PRISMA_URL: ${{ secrets.POSTGRES_PRISMA_URL }}
+        POSTGRES_URL_NON_POOLING: ${{ secrets.POSTGRES_URL_NON_POOLING }}
+        WITNESS_API_KEY: ${{ secrets.WITNESS_API_KEY }}
+        GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
+        GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
+        GOOGLE_REDIRECT_URI: ${{ secrets.GOOGLE_REDIRECT_URI }}
+        NEXTAUTH_SECRET: ${{ secrets.NEXTAUTH_SECRET }}
+        NEXTAUTH_URL: ${{ secrets.NEXTAUTH_URL }}
+        CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        NEXT_TELEMETRY_DISABLED: "1"
+      run: |
+        for value_name in \
+          POSTGRES_PRISMA_URL \
+          POSTGRES_URL_NON_POOLING \
+          WITNESS_API_KEY \
+          GOOGLE_CLIENT_ID \
+          GOOGLE_CLIENT_SECRET \
+          GOOGLE_REDIRECT_URI \
+          NEXTAUTH_SECRET \
+          NEXTAUTH_URL \
+          CRON_SECRET; do
+          if [ -z "${!value_name}" ]; then
+            echo "Value for $value_name is empty"
+            exit 1
+          fi
+        done
+
+        pnpm exec prisma generate --generator client_js
+        pnpm exec prisma migrate deploy
+        pnpm exec next build
+
+        if [ ! -f .next/standalone/server.js ]; then
+          echo "Next.js standalone build did not produce .next/standalone/server.js"
+          exit 1
+        fi
+
+        rm -rf /tmp/archive-prove-email-artifact
+        mkdir -p /tmp/archive-prove-email-artifact/.next
+        cp -a .next/standalone /tmp/archive-prove-email-artifact/.next/standalone
+        mkdir -p /tmp/archive-prove-email-artifact/.next/standalone/.next
+        cp -a .next/static /tmp/archive-prove-email-artifact/.next/standalone/.next/static
+
+        if [ -d public ]; then
+          cp -a public /tmp/archive-prove-email-artifact/.next/standalone/public
+        fi
+
+        tar -C /tmp/archive-prove-email-artifact -czf "${{ env.DEPLOY_ARTIFACT }}" .next/standalone
+        ls -lh "${{ env.DEPLOY_ARTIFACT }}"
+
     - name: Prepare VM SSH
       if: github.event.inputs.action == 'apply' && steps.workspace.outputs.workspace == 'main'
       run: |
@@ -250,8 +322,11 @@ jobs:
         scp -i ~/.ssh/dkimreg_vm /tmp/archive-prove-email.runtime.env \
           "${{ env.DEPLOY_USER }}@${{ env.DEPLOY_HOST }}:/home/${{ env.DEPLOY_USER }}/archive-prove-email.runtime.env"
 
+        scp -i ~/.ssh/dkimreg_vm "${{ env.DEPLOY_ARTIFACT }}" \
+          "${{ env.DEPLOY_USER }}@${{ env.DEPLOY_HOST }}:${{ env.DEPLOY_REMOTE_ARTIFACT }}"
+
         ssh -i ~/.ssh/dkimreg_vm "${{ env.DEPLOY_USER }}@${{ env.DEPLOY_HOST }}" \
-          "set -euo pipefail; cd '${{ env.DEPLOY_REPO_DIR }}'; git fetch origin; git pull --ff-only origin main; REPO_DIR='${{ env.DEPLOY_REPO_DIR }}' SERVICE_NAME='${{ env.DEPLOY_SERVICE }}' BRANCH='main' bash '${{ env.DEPLOY_REPO_DIR }}/deployment/deploy-gce.sh'"
+          "set -euo pipefail; cd '${{ env.DEPLOY_REPO_DIR }}'; git fetch origin; git pull --ff-only origin main; REPO_DIR='${{ env.DEPLOY_REPO_DIR }}' SERVICE_NAME='${{ env.DEPLOY_SERVICE }}' BRANCH='main' ARTIFACT_PATH='${{ env.DEPLOY_REMOTE_ARTIFACT }}' bash '${{ env.DEPLOY_REPO_DIR }}/deployment/deploy-gce.sh'"
 
         echo "- VM app deployment completed on ${{ env.DEPLOY_INSTANCE }}" >> $GITHUB_STEP_SUMMARY
 

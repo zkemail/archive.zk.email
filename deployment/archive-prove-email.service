@@ -6,7 +6,7 @@ Wants=network-online.target
 [Service]
 Type=simple
 User=olof_andersson
-WorkingDirectory=/home/olof_andersson/archive.prove.email
+WorkingDirectory=/home/olof_andersson/archive.prove.email/.next/standalone
 Environment=NODE_ENV=production
 Environment=PORT=3000
 Environment=HOSTNAME=0.0.0.0
@@ -14,7 +14,7 @@ Environment=PATH=/home/olof_andersson/node-v22.22.0-linux-x64/bin:/home/olof_and
 EnvironmentFile=-/home/olof_andersson/archive.prove.email/.env
 EnvironmentFile=-/home/olof_andersson/archive.prove.email/.env.production
 EnvironmentFile=-/home/olof_andersson/archive-prove-email.runtime.env
-ExecStart=/usr/bin/env pnpm start
+ExecStart=/usr/bin/env node server.js
 Restart=always
 RestartSec=5
 TimeoutStopSec=30

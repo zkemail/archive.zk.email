@@ -1,4 +1,3 @@
-import { CloudTasksClient } from '@google-cloud/tasks';
 import chalk from 'chalk';
 import { headers } from 'next/headers';
 
@@ -13,7 +12,8 @@ export interface GcdCalculationPayload {
 
 export async function createGcdCalculationTask(payload: GcdCalculationPayload) {
 
-  let client: CloudTasksClient;
+  const { CloudTasksClient } = await import('@google-cloud/tasks');
+  let client: InstanceType<typeof CloudTasksClient>;
   if (process.env.NODE_ENV !== 'development' && process.env.GOOGLE_APPLICATION_CREDENTIALS_JSON) {
     // Parse the JSON credentials from environment variable
     const credentials = JSON.parse(process.env.GOOGLE_APPLICATION_CREDENTIALS_JSON);
