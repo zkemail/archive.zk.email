@@ -41,7 +41,14 @@ set -a
 set +a
 
 pnpm install --frozen-lockfile
+
+export NODE_OPTIONS="${NODE_OPTIONS:-} --max-old-space-size=${NODE_MAX_OLD_SPACE_SIZE:-1536}"
 pnpm build
+
+if [ ! -f "$REPO_DIR/.next/BUILD_ID" ]; then
+  echo "Next.js build did not produce .next/BUILD_ID" >&2
+  exit 1
+fi
 
 sudo install -m 0644 "$REPO_DIR/deployment/$SERVICE_NAME.service" "/etc/systemd/system/$SERVICE_NAME.service"
 sudo systemctl daemon-reload
