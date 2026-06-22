@@ -66,4 +66,14 @@ sudo systemctl daemon-reload
 sudo systemctl enable "$SERVICE_NAME"
 sudo systemctl restart "$SERVICE_NAME"
 sudo systemctl is-active --quiet "$SERVICE_NAME"
+
+if command -v nginx >/dev/null 2>&1 && [ -f "$REPO_DIR/deployment/$SERVICE_NAME.nginx" ]; then
+  sudo install -m 0644 "$REPO_DIR/deployment/$SERVICE_NAME.nginx" "/etc/nginx/sites-available/$SERVICE_NAME"
+  sudo ln -sf "/etc/nginx/sites-available/$SERVICE_NAME" "/etc/nginx/sites-enabled/$SERVICE_NAME"
+  sudo rm -f /etc/nginx/sites-enabled/default
+  sudo nginx -t
+  sudo systemctl enable --now nginx
+  sudo systemctl reload nginx
+fi
+
 git rev-parse HEAD
