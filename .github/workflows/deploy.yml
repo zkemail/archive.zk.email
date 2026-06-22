@@ -1,4 +1,4 @@
-name: Deploy Infrastructure and Update Render
+name: Deploy Infrastructure and VM App
 
 on:
   push:
@@ -9,10 +9,15 @@ on:
 env:
   TF_VERSION: '1.5.0'
   TF_WORKING_DIR: './terraform'
+  DEPLOY_HOST: 34.145.87.6
+  DEPLOY_INSTANCE: dkimreg-key-populator
+  DEPLOY_USER: olof_andersson
+  DEPLOY_REPO_DIR: /home/olof_andersson/archive.prove.email
+  DEPLOY_SERVICE: archive-prove-email
 
 jobs:
   deploy:
-    name: 'Deploy Infrastructure and Update Render'
+    name: 'Deploy Infrastructure and VM App'
     runs-on: ubuntu-latest
     environment: ${{ github.event_name == 'pull_request' && 'Preview' || 'Production' }}
     
@@ -89,108 +94,74 @@ jobs:
           -var="archive_service_account_email=${{ secrets.ARCHIVE_SERVICE_ACCOUNT_EMAIL }}"
       working-directory: ${{ env.TF_WORKING_DIR }}
 
-    - name: Update Render Environment Variables
+    - name: Prepare VM SSH
+      if: github.event_name == 'push'
       run: |
-        echo "📊 Getting Terraform outputs from main workspace..."
+        install -m 700 -d ~/.ssh
+        printf '%s\n' "${{ secrets.DKIMREG_VM_SSH_PRIVATE_KEY }}" > ~/.ssh/dkimreg_vm
+        chmod 600 ~/.ssh/dkimreg_vm
+        ssh-keyscan -H "${{ env.DEPLOY_HOST }}" >> ~/.ssh/known_hosts
+
+    - name: Write Terraform Runtime Environment
+      if: github.event_name == 'push'
+      run: |
         cd ${{ env.TF_WORKING_DIR }}
-        
-        # Get terraform outputs directly
+
         OUTPUTS_JSON=$(terraform output -json)
-        
-        # Extract values using jq
+
         GOOGLE_CLOUD_PROJECT_ID=$(echo "$OUTPUTS_JSON" | jq -r '.GOOGLE_CLOUD_PROJECT_ID.value')
         GOOGLE_CLOUD_REGION=$(echo "$OUTPUTS_JSON" | jq -r '.GOOGLE_CLOUD_REGION.value')
         CLOUD_TASKS_QUEUE_NAME=$(echo "$OUTPUTS_JSON" | jq -r '.CLOUD_TASKS_QUEUE_NAME.value')
         CLOUD_FUNCTION_URL=$(echo "$OUTPUTS_JSON" | jq -r '.CLOUD_FUNCTION_URL.value')
         TASKS_SERVICE_ACCOUNT_EMAIL=$(echo "$OUTPUTS_JSON" | jq -r '.TASKS_SERVICE_ACCOUNT_EMAIL.value')
-        
-        # Function to update environment variable silently
-        update_env_var() {
-          local key=$1
-          local value=$2
-          
-          if [ -z "$value" ] || [ "$value" = "null" ]; then
-            echo "❌ Value for $key is empty or null, skipping..."
-            exit 1
-          fi
-          
-          echo "Updating $key..."
-          
-          response=$(curl -s -w "%{http_code}" -o /tmp/response.json \
-            -X PUT \
-            -H "Authorization: Bearer ${{ secrets.RENDER_API_KEY }}" \
-            -H "Content-Type: application/json" \
-            -d "{\"value\": \"$value\"}" \
-            "https://api.render.com/v1/services/${{ secrets.RENDER_SERVICE_ID }}/env-vars/$key")
-          
-          http_code="${response: -3}"
-          
-          if [ "$http_code" -eq 200 ] || [ "$http_code" -eq 201 ]; then
-            echo "✅ Successfully updated $key"
-          else
-            echo "❌ Failed to update $key (HTTP $http_code)"
-            if [ -f /tmp/response.json ]; then
-              cat /tmp/response.json
-            fi
-            exit 1
-          fi
-        }
-        
-        # Update all environment variables
-        update_env_var "GOOGLE_CLOUD_PROJECT_ID" "$GOOGLE_CLOUD_PROJECT_ID"
-        update_env_var "GOOGLE_CLOUD_REGION" "$GOOGLE_CLOUD_REGION"
-        update_env_var "CLOUD_TASKS_QUEUE_NAME" "$CLOUD_TASKS_QUEUE_NAME"
-        update_env_var "CLOUD_FUNCTION_URL" "$CLOUD_FUNCTION_URL"
-        update_env_var "TASKS_SERVICE_ACCOUNT_EMAIL" "$TASKS_SERVICE_ACCOUNT_EMAIL"
 
-    - name: Trigger Render Deployment
+        for value_name in \
+          GOOGLE_CLOUD_PROJECT_ID \
+          GOOGLE_CLOUD_REGION \
+          CLOUD_TASKS_QUEUE_NAME \
+          CLOUD_FUNCTION_URL \
+          TASKS_SERVICE_ACCOUNT_EMAIL; do
+          if [ -z "${!value_name}" ] || [ "${!value_name}" = "null" ]; then
+            echo "Value for $value_name is empty or null"
+            exit 1
+          fi
+        done
+
+        cat > /tmp/archive-prove-email.runtime.env <<EOF
+        GOOGLE_CLOUD_PROJECT_ID=$GOOGLE_CLOUD_PROJECT_ID
+        GOOGLE_CLOUD_REGION=$GOOGLE_CLOUD_REGION
+        CLOUD_TASKS_QUEUE_NAME=$CLOUD_TASKS_QUEUE_NAME
+        CLOUD_FUNCTION_URL=$CLOUD_FUNCTION_URL
+        TASKS_SERVICE_ACCOUNT_EMAIL=$TASKS_SERVICE_ACCOUNT_EMAIL
+        EOF
+
+        scp -i ~/.ssh/dkimreg_vm /tmp/archive-prove-email.runtime.env \
+          "${{ env.DEPLOY_USER }}@${{ env.DEPLOY_HOST }}:/home/${{ env.DEPLOY_USER }}/archive-prove-email.runtime.env"
+
+    - name: Deploy VM App
+      if: github.event_name == 'push'
       run: |
-        echo "🚀 Triggering Render deployment..."
-        
-        response=$(curl -s -w "%{http_code}" -o /tmp/deploy_response.json \
-          -X POST \
-          -H "Authorization: Bearer ${{ secrets.RENDER_API_KEY }}" \
-          -H "Content-Type: application/json" \
-          "https://api.render.com/v1/services/${{ secrets.RENDER_SERVICE_ID }}/deploys")
-        
-        http_code="${response: -3}"
-        
-        if [ "$http_code" -eq 201 ]; then
-          echo "✅ Successfully triggered Render deployment"
-          if [ -f /tmp/deploy_response.json ]; then
-            deploy_id=$(cat /tmp/deploy_response.json | jq -r '.id // "unknown"')
-            echo "Deployment ID: $deploy_id"
-          fi
-        else
-          echo "❌ Failed to trigger deployment (HTTP $http_code)"
-          if [ -f /tmp/deploy_response.json ]; then
-            echo "Response:"
-            cat /tmp/deploy_response.json
-          fi
-          exit 1
-        fi
+        ssh -i ~/.ssh/dkimreg_vm "${{ env.DEPLOY_USER }}@${{ env.DEPLOY_HOST }}" \
+          "set -euo pipefail; cd '${{ env.DEPLOY_REPO_DIR }}'; git fetch origin; git pull --ff-only origin main; REPO_DIR='${{ env.DEPLOY_REPO_DIR }}' SERVICE_NAME='${{ env.DEPLOY_SERVICE }}' BRANCH='main' bash '${{ env.DEPLOY_REPO_DIR }}/deployment/deploy-gce.sh'"
 
     - name: Cleanup
       if: always()
       run: |
-        # Remove any temporary files for security
-        rm -f /tmp/response.json /tmp/deploy_response.json
-        echo "✅ Temporary files cleaned up"
+        rm -f /tmp/archive-prove-email.runtime.env
+        echo "Temporary files cleaned up"
 
     - name: Deployment Summary
       if: always()
       run: |
-        echo "## 🚀 Deployment Summary" >> $GITHUB_STEP_SUMMARY
-        echo "- ✅ Terraform infrastructure updated (main workspace)" >> $GITHUB_STEP_SUMMARY
+        echo "## Deployment Summary" >> $GITHUB_STEP_SUMMARY
+        echo "- Terraform infrastructure updated in workspace: ${{ steps.workspace.outputs.workspace }}" >> $GITHUB_STEP_SUMMARY
         
         if [ "${{ job.status }}" = "success" ]; then
-          echo "- ✅ Render environment variables updated" >> $GITHUB_STEP_SUMMARY
-          echo "- ✅ Render deployment triggered" >> $GITHUB_STEP_SUMMARY
+          echo "- VM app deployment completed on ${{ env.DEPLOY_INSTANCE }}" >> $GITHUB_STEP_SUMMARY
         else
-          echo "- ❌ Render update failed" >> $GITHUB_STEP_SUMMARY
+          echo "- VM app deployment failed or was skipped" >> $GITHUB_STEP_SUMMARY
         fi
         
         echo "" >> $GITHUB_STEP_SUMMARY
         echo "### Status:" >> $GITHUB_STEP_SUMMARY
-        echo "- Environment variables have been securely updated in Render" >> $GITHUB_STEP_SUMMARY
-        echo "- All sensitive values were passed without logging" >> $GITHUB_STEP_SUMMARY
+        echo "- Render API deployment is no longer used by this workflow" >> $GITHUB_STEP_SUMMARY

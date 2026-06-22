@@ -1,0 +1,23 @@
+[Unit]
+Description=archive.prove.email Next.js service
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=olof_andersson
+WorkingDirectory=/home/olof_andersson/archive.prove.email
+Environment=NODE_ENV=production
+Environment=PORT=3000
+Environment=HOSTNAME=0.0.0.0
+Environment=PATH=/home/olof_andersson/node-v22.22.0-linux-x64/bin:/home/olof_andersson/node-v22.2.0-linux-x64/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+EnvironmentFile=-/home/olof_andersson/archive.prove.email/.env
+EnvironmentFile=-/home/olof_andersson/archive.prove.email/.env.production
+EnvironmentFile=-/home/olof_andersson/archive-prove-email.runtime.env
+ExecStart=/usr/bin/env pnpm start
+Restart=always
+RestartSec=5
+TimeoutStopSec=30
+
+[Install]
+WantedBy=multi-user.target
