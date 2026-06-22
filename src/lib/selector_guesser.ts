@@ -1,6 +1,8 @@
 import { type DomainAndSelector, isValidDate } from "./utils";
 import { addDomainSelectorPair } from "./utils_server";
 
+const GOOGLE_DATE_GUESS_DAYS = 7;
+
 function dateToYYYYMMDD(date: Date): string {
 	return `${date.getFullYear()}${(date.getMonth() + 1).toString().padStart(2, '0')}${date.getDate().toString().padStart(2, '0')}`;
 }
@@ -23,6 +25,39 @@ function getAlternativeDsp(domain: string, selector: string, oldDate: string, ne
 	const newDomain = domain.replace(oldDate, newDate);
 
 	return { domain: newDomain, selector: newSelector };
+}
+
+function isGoogleManagedDomain(domain: string): boolean {
+	const normalized = domain.toLowerCase();
+	return normalized === 'gmail.com'
+		|| normalized.endsWith('.gmail.com')
+		|| normalized === 'google.com'
+		|| normalized.endsWith('.google.com')
+		|| normalized === 'googlemail.com'
+		|| normalized.endsWith('.googlemail.com')
+		|| normalized === 'googlegroups.com'
+		|| normalized.endsWith('.googlegroups.com')
+		|| normalized === 'gappssmtp.com'
+		|| normalized.endsWith('.gappssmtp.com');
+}
+
+function candidateDates(domain: string, newDate: Date): Date[] {
+	const days = isGoogleManagedDomain(domain) ? GOOGLE_DATE_GUESS_DAYS : 1;
+	return Array.from({ length: days }, (_, index) => {
+		const date = new Date(newDate);
+		date.setDate(newDate.getDate() - index);
+		return date;
+	});
+}
+
+function yearPattern(domain: string, newDate: Date): string {
+	if (isGoogleManagedDomain(domain)) {
+		return `(\\d{4})`;
+	}
+	const y0 = newDate.getFullYear().toString();
+	const y1 = (newDate.getFullYear() - 1).toString();
+	const y2 = (newDate.getFullYear() - 2).toString();
+	return `(${y0}|${y1}|${y2})`;
 }
 
 function findYYYYMMDD(domain: string, selector: string, yearPattern: string, alternatives: DomainAndSelector[], newDate: Date) {
@@ -59,15 +94,29 @@ function findAABBYYYY(domain: string, selector: string, yearPattern: string, alt
 	}
 }
 
+function uniqueAlternatives(domain: string, selector: string, alternatives: DomainAndSelector[]): DomainAndSelector[] {
+	const seen = new Set<string>();
+	return alternatives.filter(alternative => {
+		if (alternative.domain === domain && alternative.selector === selector) {
+			return false;
+		}
+		const key = `${alternative.domain}\t${alternative.selector}`;
+		if (seen.has(key)) {
+			return false;
+		}
+		seen.add(key);
+		return true;
+	});
+}
+
 export function findAlternatives(domain: string, selector: string, newDate: Date): DomainAndSelector[] {
 	const alternatives: DomainAndSelector[] = [];
-	const y0 = newDate.getFullYear().toString();
-	const y1 = (newDate.getFullYear() - 1).toString();
-	const y2 = (newDate.getFullYear() - 2).toString();
-	const yearPattern = `(${y0}|${y1}|${y2})`;
-	findYYYYMMDD(domain, selector, yearPattern, alternatives, newDate);
-	findAABBYYYY(domain, selector, yearPattern, alternatives, newDate);
-	return alternatives;
+	const domainYearPattern = yearPattern(domain, newDate);
+	for (const date of candidateDates(domain, newDate)) {
+		findYYYYMMDD(domain, selector, domainYearPattern, alternatives, date);
+		findAABBYYYY(domain, selector, domainYearPattern, alternatives, date);
+	}
+	return uniqueAlternatives(domain, selector, alternatives);
 }
 
 export async function guessSelectors(domain: string, selector: string, newDate: Date) {
