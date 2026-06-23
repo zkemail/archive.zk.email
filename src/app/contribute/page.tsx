@@ -22,6 +22,14 @@ export default function Page() {
 			<h3>Upload from Gmail</h3>
 			<p>To upload directly from your Gmail account, visit the <strong><a href="#" onClick={() => signIn("google")}>Upload from Gmail</a></strong> page.</p>
 			<p>
+				During Google's sign-in flow, make sure you tick the checkbox that grants access to read your Gmail messages.
+				If you leave that checkbox unchecked, DKIM Archive will not be able to scan your messages for
+				<InlineCode>DKIM-Signature</InlineCode> headers, and the Gmail upload will not find domains and selectors to contribute.
+			</p>
+			<p>
+				Only continue if you are comfortable granting that Gmail access. You can revoke the permission later from your Google account settings.
+			</p>
+			<p>
 				When you sign in with your Gmail account and press Start, the site will
 				extract the <InlineCode>DKIM-Signature</InlineCode> field from each email message in your Gmail account.
 				A signature can look something like this:
